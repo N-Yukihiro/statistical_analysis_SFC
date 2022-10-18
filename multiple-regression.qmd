@@ -152,6 +152,35 @@ multiplot(
   names = c("model1", "model2", "model3"))
 ```
 
+### 予測値の算出
+
+`predict()`関数を利用して予測値を算出する.
+
+```{r}
+p_load(dplyr)
+pred1 <- predict(model1)
+pred2 <- predict(model2)
+pred3 <- predict(model3)
+```
+
+### 予測値と実測値のプロット
+
+予測値と実測値のプロットを行う.
+
+```{r}
+p_load(ggplot2)
+ggplot() +
+  aes(x = kakei$CONS1) +
+  geom_point(aes(y = pred1),
+             colour = "blue") +
+  geom_point(aes(y = pred2),
+             colour = "red") +
+  geom_point(aes(y = pred3),
+             colour = "green") +
+  geom_abline(slope     = 1, 
+              intercept = 0)
+```
+
 ### LOOCVの計算
 
 `caret`パッケージを利用してLOOCVを求める.
