@@ -1,0 +1,391 @@
+---
+title: "ポアソン回帰モデル・負の二項回帰モデル"
+format: html
+---
+
+# Today's dataset
+
+### 今日使うデータ
+
+- 今日は`datasets`パッケージの`warpbreaks`を利用する
+    - `datasets`パッケージは基本的にデフォルトでインストールされている
+    - 1台の織機あたりの反り破損の数のデータ
+
+```{r}
+library(pacman)
+p_load(datasets)
+names(warpbreaks)
+```
+
+### データ構造の確認
+- データ構造を確認するため, `dplyr::glimpse`を利用する
+
+```{r}
+p_load(dplyr)
+glimpse(warpbreaks)
+```
+
+### 要約統計量
+- データの記述統計を確認するために`summary()`関数を利用する
+
+```{r}
+summary(warpbreaks)
+```
+
+### その他の要約統計量
+
+- 分散などの要約統計量を計算するために`summarise`関数を利用する
+
+```{r}
+warpbreaks |> 
+  summarise(mean  = mean(breaks),
+            var   = var(breaks),
+            ratio = var / mean)
+```
+
+### ヒストグラムの描画
+
+- ggplot2を使ってヒストグラムを描画する
+
+```{r}
+p_load(ggplot2)
+ggplot(warpbreaks) +
+  aes(x = breaks) +
+  geom_histogram()
+```
+
+### 種類ごとの描画
+
+- ウールの種類ごとにヒストグラムを描画する
+
+```{r}
+ggplot(warpbreaks) +
+  aes(x    = breaks,
+      fill = wool) +
+  geom_histogram(
+    position = "identity", 
+    alpha    = 0.5)
+```
+
+###
+
+- 同様に糸の張力ごとに描画する
+
+```{r}
+ggplot(warpbreaks) +
+  aes(x    = breaks,
+      fill = tension) +
+  geom_histogram(
+    position = "identity",
+    alpha    = 0.5)
+```
+
+# Poisson Regression Model
+
+### ポアソン回帰モデル
+
+- ポアソン回帰を行うには, `glm(family = poisson(link = "log"))`とする
+
+```{r}
+wb_poisson <- glm(breaks ~ wool + tension,
+                  data   = warpbreaks, 
+                  family = poisson(link = "log"))
+```
+
+### ポアソン回帰モデルの結果
+
+- `jtools`パッケージの`summ()`関数を利用して結果を表示する
+
+```{r}
+p_load(jtools)
+summ(wb_poisson)
+```
+
+### ポアソン回帰モデルによる予測
+
+- 分析結果から予測を行うには`predict`を利用する
+    - ここでは`wool`がタイプ`A`で糸の張力が`L`の場合で計算する
+
+```{r}
+predict(wb_poisson, 
+        newdata = data.frame(wool    = "A", 
+                             tension = "L"), 
+        type    = "response")
+```
+
+### ポアソン回帰モデルによって推定された結果の図示
+
+- 推定された結果を図示する
+
+```{r}
+warpbreaks |> 
+  mutate(predict = 
+           predict(wb_poisson,
+                   type = "response")) |> 
+  ggplot() +
+  aes(x      = breaks,
+      y      = predict,
+      colour = tension) +
+  geom_point() +
+  geom_abline(slope     = 1,
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+###
+
+- LOOCVによる評価
+
+```{r}
+p_load(caret)
+train(breaks ~ wool + tension,
+      warpbreaks,
+      method    = "glm",
+      family    = poisson(link = "log"),
+      trControl = trainControl("LOOCV"))
+```
+
+# Quasi-Poisson Model
+
+### 擬似的ポアソン回帰モデル
+- 擬似的ポアソン回帰を行うには, `glm(family = quasipoisson(link = "log"))`とする
+
+```{r}
+wb_qpoisson <- glm(breaks ~ wool + tension,
+                   data   = warpbreaks, 
+                   family = quasipoisson(link = "log"))
+```
+
+### 擬似的ポアソン回帰モデルの結果
+
+```{r}
+summ(wb_qpoisson)
+```
+
+### 擬似的ポアソン回帰モデルによる予測
+
+- 分析結果から予測を行うには`predict`を利用する
+    - ここでは`wool`がタイプ`A`で糸の張力が`L`の場合で計算する
+
+```{r}
+predict(wb_qpoisson, 
+        newdata = data.frame(wool    = "A", 
+                             tension = "L"), 
+        type    = "response")
+```
+
+
+### 擬似的ポアソン回帰モデルによって推定された結果の図示
+
+- 推定された結果を図示する
+
+```{r}
+warpbreaks |> 
+  mutate(predict = 
+           predict(wb_qpoisson,
+                   type = "response")) |> 
+  ggplot() +
+  aes(x      = breaks, 
+      y      = predict, 
+      colour = tension) +
+  geom_point() +
+  geom_abline(slope     = 1, 
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+###
+
+- LOOCVによる評価
+
+```{r}
+train(breaks ~ wool + tension,
+      warpbreaks,
+      method    = "glm",
+      family    = quasipoisson(link = "log"),
+      trControl = trainControl("LOOCV"))
+```
+
+# Negative Binomial Regression Model
+
+### 負の二項回帰モデル
+
+- 負の二項回帰を行うには, `MASS::glm.nb`を利用する
+    - `glm`でもリンク関数に負の二項分布を指定できるが, `glm.nb`はパラメーター$\theta$を自動で最尤推定する
+
+```{r}
+p_load(MASS)
+wb_nb <- glm.nb(breaks ~ wool + tension,
+                data = warpbreaks)
+```
+
+### 負の二項回帰モデルの結果
+
+```{r}
+summ(wb_nb)
+```
+
+### 負の二項回帰モデルによる予測
+
+- 分析結果から予測を行うには`predict`を利用する
+    - ここでは`wool`がタイプ`A`で糸の張力が`L`の場合で計算する
+
+```{r}
+predict(wb_nb, 
+        newdata = data.frame(wool    = "A",
+                             tension = "L"), 
+        type    = "response")
+```
+
+### 負の二項回帰モデルによって推定された結果の図示
+
+- 推定された結果を図示する
+
+```{r}
+warpbreaks |> 
+  mutate(predict = 
+           predict(wb_nb, 
+                   type = "response")) |> 
+  ggplot() +
+  aes(x      = breaks,
+      y      = predict,
+      colour = tension) +
+  geom_point() +
+  geom_abline(slope     = 1, 
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+###
+
+- LOOCVによる評価
+
+```{r}
+train(breaks ~ wool + tension,
+      warpbreaks,
+      method    = "glm.nb",
+      trControl = trainControl("LOOCV"))
+```
+
+# Comparing Regression Models
+
+### 各モデルを表で比較
+
+- `stargazer`で表を並べる
+
+```{r}
+stargazer::stargazer(wb_poisson, 
+                     wb_qpoisson, 
+                     wb_nb,
+                     type              = "text",
+                     style             = "all",
+                     star.cutoffs      = NA,
+                     omit.table.layout = 'n',
+                     ci                = TRUE,
+                     align             = TRUE)
+```
+
+### 図による比較
+
+- 複数のモデルにより推定された回帰係数を図示するには`jtools::plot_summs()`を利用するのが便利
+    - 特に指数変換したい場合は`coefplot`パッケージより便利
+    - `ggstance`パッケージを裏で使っているのでインストール必須
+
+```{r}
+p_load(jtools, ggstance, broom.mixed)
+plot_summs(wb_poisson, 
+           wb_qpoisson, 
+           wb_nb, 
+           exp = TRUE)
+```
+
+# Appendix
+
+### 交互作用項
+
+- woolとtensionは独立なため, この2つの項の交互作用項を分析に導入する
+    - 交互作用項を導入するには, `+`ではなく`*`で変数間を繋ぐ
+
+```{r}
+wb_nb2 <- glm.nb(breaks ~ wool * tension,
+                 data = warpbreaks)
+```
+
+
+### 交互作用項を含めたモデルの結果
+
+```{r}
+summ(wb_nb2)
+```
+
+
+### 交互作用項を含めたモデルによる予測
+
+- 分析結果から予測を行うには`predict`を利用する
+    - ここでは`wool`がタイプ`A`で糸の張力が`L`の場合で計算する
+
+```{r}
+predict(wb_nb2, 
+        newdata = data.frame(wool    = "A",
+                             tension = "L"), 
+        type    = "response")
+```
+
+### 交互作用項を含めたモデルによって推定された結果の図示
+
+- 推定された結果を図示する
+
+```{r}
+warpbreaks |> 
+  mutate(predict = 
+           predict(wb_nb2, 
+                   type = "response")) |> 
+  ggplot() +
+  aes(x      = breaks,
+      y      = predict,
+      colour = tension) +
+  geom_point() +
+  geom_abline(slope     = 1,
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+###
+
+- woolをAで固定した時に, 予測値がどのように変化するのかを図示する
+- 合わせて実測値をポイントでプロットする
+
+```{r}
+warpbreaks |> 
+  mutate(predict = 
+           predict(wb_nb2, 
+                   type = "response")) |> 
+  filter(wool == "A") |> 
+  distinct(tension,
+           .keep_all = TRUE) |> 
+  ggplot() +
+  aes(x    = tension,
+      y    = predict,
+      fill = tension) +
+  geom_bar(stat = "identity") +
+  geom_point(data = warpbreaks |> 
+               filter(wool == "A"),
+             aes(y = breaks))
+```
+
+###
+
+モデルの比較
+
+```{r}
+stargazer::stargazer(wb_poisson, 
+                     wb_qpoisson, 
+                     wb_nb, 
+                     wb_nb2,
+                     type              = "text",
+                     style             = "all",
+                     star.cutoffs      = NA,
+                     omit.table.layout = 'n',
+                     ci                = TRUE,
+                     align             = TRUE)
+```
