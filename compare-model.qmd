@@ -1,0 +1,374 @@
+---
+title: "モデルの比較, 選択"
+format: html
+---
+
+# Today's dataset
+
+### 今日使うデータ
+
+- Stata pressで公開されているデータを用いる
+- 博士号を取得した生化学者が発表した論文数に関するデータ
+    - 性別や既婚未婚, 6歳未満の子供の数などの変数が含まれている
+
+```{r}
+library(pacman)
+p_load(foreign)
+npub <- foreign::read.dta(
+  "http://www.stata-press.com/data/lf2/couart2.dta")
+names(npub)
+```
+
+### データ構造の確認
+
+- `dplyr`パッケージの`glimpse()`関数を利用してデータの構造を確認する
+
+```{r}
+p_load(dplyr)
+glimpse(npub)
+```
+
+
+### データの要約統計量
+
+- データの要約統計量を確認する
+
+```{r}
+summary(npub)
+```
+
+### データの平均と分散
+
+- `summarise`を利用して平均と分散を計算する
+
+```{r}
+npub |> 
+  summarise(mean  = mean(art), 
+            var   = var(art), 
+            ratio = var(art) / mean(art))
+```
+
+### ヒストグラム
+
+- データの概要をヒストグラムを描画して確認する
+
+```{r}
+p_load(ggplot2)
+ggplot(npub) +
+  aes(x = art) +
+  geom_histogram()
+```
+
+### 散布図
+
+- 変数`ment`と`art`の関係を散布図を描いて確認する
+
+```{r}
+ggplot(npub) + 
+  aes(x = ment,
+      y = art) +
+  geom_point()
+```
+
+# モデル推定とモデル選択
+
+### ポアソン回帰モデルの推定
+
+- まず, 全変数を投入したモデルnpub_poisson1とphdを除いたnpub_poisson2を推定する
+
+```{r}
+npub_poisson1 <- glm(art ~ ., 
+                     data   = npub, 
+                     family = poisson(link = "log"))
+npub_poisson2 <- glm(art ~ fem + mar + kid5 + ment, 
+                     data   = npub, 
+                     family = poisson(link = "log"))
+npub_poisson3 <- glm(art ~ ment, 
+                     data   = npub, 
+                     family = poisson(link = "log"))
+```
+
+### 推定結果の確認
+
+- `ment`のみを説明変数として推定された結果を散布図上に表示して確認する
+
+```{r}
+ggplot(npub) +
+  aes(x = ment,
+      y = art) +
+  geom_point() + 
+  geom_smooth(method      = "glm", 
+              method.args = 
+                list(family = "poisson"))
+```
+
+### ポアソン回帰モデル(全変数)の結果
+
+```{r}
+p_load(jtools)
+summ(npub_poisson1, confint = TRUE)
+```
+
+### `stargazer`による表示
+
+- 今回利用する統計量などは`stargazer()`関数では自動で出力されるので便利
+
+```{r}
+stargazer::stargazer(npub_poisson1,
+                     type              = "text",
+                     style             = "all",
+                     star.cutoffs      = NA,
+                     omit.table.layout = 'n',
+                     ci                = TRUE,
+                     align             = TRUE)
+```
+
+### 過分散のチェック
+
+- 残差逸脱度(Residual Deviance)と残差自由度(degree of freedom)の関係をチェックする
+    - 残差逸脱度と残差自由度の比が1を大きく上回っており, 過分散であることが示唆される(1.5程度が目安であるとする意見もある)
+    - 過分散であると本当は有意でない変数も有意になりやすくなる
+
+```{r}
+deviance(npub_poisson1)
+df.residual(npub_poisson1)
+deviance(npub_poisson1) / df.residual(npub_poisson1)
+```
+
+### データのばらつき具合を推定する
+
+- データのばらつき具合の推定値(dispersion parameter)を計算する
+
+```{r}
+p_load(magrittr)
+residuals(npub_poisson1,
+          type = "pearson") |> 
+  raise_to_power(2) |> 
+  sum() |> 
+  divide_by(df.residual(npub_poisson1))
+```
+
+
+### ポアソン回帰モデル(除phd)の結果
+
+- 変数`phd`を除いたモデルの結果も確認する
+
+```{r}
+summ(npub_poisson2)
+```
+
+### `stargazer`による表示
+
+- 今回利用する統計量などは`stargazer()`関数では自動で出力されるので便利
+
+```{r}
+stargazer::stargazer(npub_poisson2,
+                     type              = "text",
+                     style             = "all",
+                     star.cutoffs      = NA,
+                     omit.table.layout = 'n',
+                     ci                = TRUE,
+                     align             = TRUE)
+```
+
+### 過分散のチェック
+
+- 残差逸脱度(Residual Deviance)と残差自由度(degree of freedom)の関係をチェックする
+
+```{r}
+deviance(npub_poisson2)
+df.residual(npub_poisson2)
+deviance(npub_poisson2) / df.residual(npub_poisson2)
+```
+
+### データのばらつき具合を推定する
+
+- データのばらつき具合の推定値(dispersion parameter)を計算する
+
+```{r}
+residuals(npub_poisson2,
+          type = "pearson") |> 
+  raise_to_power(2) |> 
+  sum() |> 
+  divide_by(df.residual(npub_poisson2))
+```
+
+### 疑似ポアソン回帰
+
+- 過分散であることが示唆されるため, 疑似ポアソンを利用して, データのばらつきを調整する
+
+```{r}
+npub_qpois1 <- glm(art ~ ., 
+                   data   = npub, 
+                   family = quasipoisson(link = "log"))
+npub_qpois2 <- glm(art ~ fem + mar + kid5 + ment, 
+                   data   = npub, 
+                   family = quasipoisson(link = "log"))
+
+```
+
+### `stargazer`による表示
+
+- 今回利用する統計量などは`stargazer()`関数では自動で出力されるので便利
+
+```{r}
+stargazer::stargazer(npub_qpois1,
+                     npub_qpois2,
+                     type              = "text",
+                     style             ="all",
+                     star.cutoffs      = NA,
+                     omit.table.layout = 'n',
+                     ci                = TRUE,
+                     align             = TRUE)
+```
+
+### 標準誤差の比較
+
+- ポアソン回帰と疑似ポアソン回帰では標準誤差が約35%異なる
+    - それだけ疑似ポアソンでは回帰係数が有意になりづらくなる
+
+```{r}
+summary(npub_qpois1)$coefficients[, 2] /
+  summary(npub_poisson1)$coefficients[, 2]
+summary(npub_qpois2)$coefficients[, 2] /
+  summary(npub_poisson2)$coefficients[, 2]  
+```
+
+
+### 負の二項回帰
+
+- 過分散であることが示唆されるため, 負の二項回帰を利用して, データのばらつきを調整する
+
+```{r}
+p_load(MASS)
+npub_nb1 <- glm.nb(art ~ .,
+                   data = npub)
+npub_nb2 <- glm.nb(art ~ fem + mar + kid5 + ment, 
+                   data = npub)
+
+```
+
+### `stargazer`による表示
+
+- 今回利用する統計量などは`stargazer()`関数では自動で出力されるので便利
+
+```{r}
+stargazer::stargazer(npub_nb1,
+                     npub_nb2,
+                     type              = "text",
+                     style             ="all",
+                     star.cutoffs      = NA,
+                     omit.table.layout = 'n',
+                     ci                = TRUE,
+                     align             = TRUE)
+```
+
+### 全ての結果を比較
+
+- `stargazer`を利用すれば全ての結果を容易に比較できる
+
+```{r}
+stargazer::stargazer(npub_poisson1,
+                     npub_poisson2,
+                     npub_qpois1,
+                     npub_qpois2,
+                     npub_nb1,
+                     npub_nb2,
+                     type              = "text",
+                     style             ="all",
+                     star.cutoffs      = NA,
+                     omit.table.layout = 'n',
+                     ci                = TRUE,
+                     align             = TRUE)
+```
+
+### 最大対数尤度による比較
+
+- ポアソン回帰と負の二項回帰の最大対数尤度を比較すると負の二項回帰のほうが望ましいことがわかる
+    - ただし, 対数尤度は説明変数の数が増えれば自動的に増加する
+
+```{r}
+logLik(npub_poisson1)
+logLik(npub_poisson2)
+logLik(npub_nb1)
+logLik(npub_nb2)
+```
+
+### AICによる比較
+
+- AICを比較することで説明変数の数に関わらず予測の良いモデルが何かを探すことができる
+
+```{r}
+AIC(npub_poisson1)
+AIC(npub_poisson2)
+AIC(npub_nb1)
+AIC(npub_nb2)
+```
+
+### 逸脱度による比較
+
+- 線形回帰分析による残差平方和に相当する逸脱度を比較することもできる
+
+```{r}
+deviance(npub_poisson1)
+deviance(npub_poisson2)
+deviance(npub_nb1)
+deviance(npub_nb2)
+```
+
+
+### ANOVA(TYPE I)(逸脱度分析)
+
+- ANOVAのTYPE Iによってモデルを評価する
+- 変数`mar`に効果がないと検出されている
+    - 変数`mar`を取り除いてもモデルの当てはまりにあまり影響がない
+- ただし, 説明変数の投入順序により結果が変わりうることに注意
+
+```{r}
+anova(npub_poisson1, test = "Chisq")
+```
+
+### ANOVA(TYPE II)
+
+- `car::Anova`を利用してTYPE IIも利用する
+    - TYPE Iと異なり説明変数の順序に影響されない
+
+```{r}
+library(car)
+car::Anova(npub_poisson1, type = c("II"))
+```
+
+### ANOVA(TYPE II)
+
+- `car::Anova`を利用してTYPE IIIも利用する
+
+```{r}
+car::Anova(npub_poisson1, type = c("III"))
+```
+
+### モデルの比較
+
+- ANOVAにより2つのモデルを比較する
+
+```{r}
+anova(npub_poisson1, npub_poisson2, test = "Chisq")
+```
+
+### モデルの比較
+
+- ANOVAにより2つのモデルを比較する
+
+```{r}
+anova(npub_nb1, npub_nb2, test = "Chisq")
+```
+
+### 適合度の尤度比検定
+
+- ポアソン回帰と負の二項回帰を比較する
+- 2つのモデルの逸脱度の差がdispersion parameterが0であるとする帰無仮説の下で$\chi^2$分布に従うことを利用して尤度比検定を行う
+
+```{r}
+pchisq(deviance(npub_poisson2) - deviance(npub_nb2),
+       df         = 1,
+       lower.tail = FALSE)
+```
