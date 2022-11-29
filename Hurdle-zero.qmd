@@ -1,0 +1,380 @@
+---
+title: "Hurdleモデル ゼロ過剰モデル"
+format: html
+---
+
+# Today's dataset
+
+### 今日使うデータ
+
+- `AER`パッケージに含まれている`NMES1988`データを用いる
+    - 1987年から1988年に実施された米国全国医療費調査（NMES）
+    - 対象は66歳以上
+
+```{r}
+library(pacman)
+p_load(AER)
+data("NMES1988")
+```
+
+### 変数の説明
+
+- `NMES1988`データの中には診療所(physician office)への訪問回数(`visits`)や入院日数(`hospital`), 健康状態に対する自己認識(`health`)などが含まれている
+
+```{r}
+names(NMES1988)
+```
+
+### データ構造の確認
+
+- サンプルサイズは4406と比較的大きなデータとなっている
+    - 基本は整数値(integer)だが, 値に文字が表示されるものは因子(factor)になっている
+
+```{r}
+p_load(dplyr)
+glimpse(NMES1988)
+```
+
+
+### データの要約統計量
+
+- データの要約統計量を確認する
+
+```{r}
+summary(NMES1988)
+```
+
+### データの平均と分散
+
+- `summarise`を利用して平均と分散を計算する
+
+```{r}
+NMES1988 |> 
+  summarise(mean  = mean(visits),
+            var   = var(visits),
+            ratio = var(visits) / mean(visits))
+```
+
+### ヒストグラム
+
+- データの概要をヒストグラムを描画して確認する
+
+```{r}
+p_load(ggplot2)
+ggplot(NMES1988) +
+  aes(visits) +
+  geom_histogram()
+```
+
+### ペアプロット
+
+- 変数間の関係をペアプロットで確認する
+    - `dplyr::select()`関数を利用してペアプロットをしたい変数に絞ってから行う
+
+```{r}
+p_load(GGally)
+NMES1988 |> 
+  dplyr::select(visits,
+                hospital,
+                health,
+                age, 
+                income) |> 
+  ggpairs()
+```
+
+# モデル推定
+
+### ポアソン回帰モデルの推定
+
+- まず, ポアソン回帰モデルを推定する
+
+```{r}
+formula <- formula(visits ~ hospital + health + chronic +
+                            adl + region + age + afam + 
+                            gender + married + 
+                            school + income + insurance)
+nmes_poi <- glm(formula, 
+                data   = NMES1988, 
+                family = poisson(link = "log"))
+```
+
+### ポアソン回帰モデルの結果
+
+- `jtools`パッケージの`summ()`関数を利用して結果を確認する
+
+```{r}
+p_load(jtools)
+summ(nmes_poi)
+```
+
+### 推定結果の確認(グラフ)
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r sca2}
+NMES1988 |> 
+  mutate(
+    predict = predict(nmes_poi,
+                      type = "response")) |> 
+  ggplot() +
+  aes(x = visits,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1, 
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+### 負の二項分布モデルの推定
+
+- まず, 負の二項分布モデルを推定する
+
+```{r}
+p_load(MASS)
+nmes_nb <- glm.nb(formula, 
+                  data = NMES1988)
+```
+
+### 
+
+```{r}
+summ(nmes_nb)
+```
+
+### 推定結果の確認
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+NMES1988 |> 
+  mutate(
+    predict = predict(nmes_nb, 
+                      type = "response")) |> 
+  ggplot() +
+  aes(x = visits,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1,
+              intercept = 0,
+              linetype  = "dashed")
+```
+
+### ハードルポアソン回帰モデルの推定
+
+- まず, ハードルポアソン回帰モデルを推定する
+    - バードルポアソン回帰を行うには`pscl`パッケージの`hurdle()`関数を利用する
+
+```{r}
+p_load(pscl)
+nmes_hpoi <- hurdle(formula, 
+                    data      = NMES1988,
+                    dist      = "poisson", 
+                    zero.dist = "binomial")
+```
+
+### ハードルポアソン回帰モデルの結果
+
+- `summary()`関数を利用して結果を確認する
+
+```{r}
+summary(nmes_hpoi)
+```
+
+### ハードルポアソン回帰モデルの結果
+
+- `jtools`パッケージではハードルモデルを扱えないため, `stargazer`パッケージを利用する
+
+```{r}
+p_load(stargazer)
+stargazer(nmes_hpoi, 
+          type              = "text", 
+          style             = "all2",
+          ci                = TRUE,
+          star.cutoffs      = NA,
+          omit.table.layout = 'n',
+          align             = TRUE)
+```
+
+### 推定結果の確認
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+NMES1988 |> 
+  mutate(
+    predict = predict(nmes_hpoi, 
+                      type = "response")) |> 
+  ggplot() +
+  aes(x = visits,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1,
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+### ハードル負の二項分布モデルの推定
+
+- まず, ハードル負の二項分布モデルを推定する
+    - 引数で`dist = "negbin"`, `zero.dist = "binomial"`と指定する
+    
+```{r}
+nmes_hnb <- hurdle(formula, 
+                   data      = NMES1988,
+                   dist      = "negbin", 
+                   zero.dist = "binomial")
+```
+
+### ハードル負の二項分布モデルの結果
+
+- `summary()`関数を利用して結果を確認する
+
+```{r}
+summary(nmes_hnb)
+```
+
+### ハードル負の二項分布モデルの結果
+
+```{r}
+stargazer(nmes_hnb, 
+          type              = "text", 
+          style             = "all2",
+          ci                = TRUE,
+          star.cutoffs      = NA,
+          omit.table.layout = 'n',
+          align             = TRUE)
+```
+
+
+### 推定結果の確認
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+NMES1988 |> 
+  mutate(
+    predict = predict(nmes_hnb,
+                      type = "response")) |> 
+  ggplot() +
+  aes(x = visits,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1,
+              intercept = 0,
+              linetype  = "dashed")
+```
+
+### ゼロ過剰ポアソン回帰モデルの推定
+
+- まず, ゼロ過剰ポアソン回帰モデルを推定する
+    - 同じく`pscl`パッケージの`zeroinfl()`関数を利用する
+    - 引数で`dist = "poisson"`と指定すればゼロ過剰ポアソンとなる
+
+```{r}
+nmes_zip <- zeroinfl(formula, 
+                     data = NMES1988,
+                     dist = "poisson")
+```
+
+### ゼロ過剰ポアソン回帰モデルの結果
+
+- `summary()`関数を利用して結果を確認する
+
+```{r}
+summary(nmes_zip)
+```
+
+### ゼロ過剰ポアソン回帰モデルの結果
+
+```{r}
+stargazer(nmes_zip,
+          type              = "text", 
+          style             = "all2",
+          ci                = TRUE,
+          star.cutoffs      = NA,
+          omit.table.layout = 'n',
+          align             = TRUE)
+```
+
+### 推定結果の確認
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+NMES1988 |> 
+  mutate(
+    predict = predict(nmes_zip,
+                      type = "response")) |> 
+  ggplot() +
+  aes(x = visits,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1, 
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+### ゼロ過剰負の二項分布モデルの推定
+
+- まず, ゼロ過剰負の二項分布モデルを推定する
+
+```{r}
+nmes_zinb <- zeroinfl(formula, 
+                      data = NMES1988,
+                      dist = "negbin")
+```
+
+### ゼロ過剰負の二項分布モデルの結果
+
+- `summary()`関数を利用して結果を確認する
+
+```{r}
+summary(nmes_zinb)
+```
+
+### ゼロ過剰負の二項分布モデルの結果
+
+```{r}
+stargazer(nmes_zinb, 
+          type              = "text", 
+          style             = "all2",
+          ci                = TRUE,
+          star.cutoffs      = NA,
+          omit.table.layout = 'n',
+          align             = TRUE)
+```
+
+### 推定結果の確認
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+NMES1988 |> 
+  mutate(
+    predict = predict(nmes_zinb, 
+                      type = "response")) |> 
+  ggplot() +
+  aes(x = visits,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1, 
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+# モデル比較
+
+### 表による比較
+
+```{r}
+stargazer(nmes_poi,  nmes_nb, 
+          nmes_hpoi, nmes_hnb,
+          nmes_zip,  nmes_zinb, 
+          type              = "text", 
+          style             = "all2",
+          ci                = TRUE,
+          star.cutoffs      = NA,
+          omit.table.layout = 'n',
+          align             = TRUE)
+```
+
