@@ -1,0 +1,581 @@
+---
+title: "Rによるデータ整形"
+format: html
+---
+
+# Why Do We Do Data Transformation?
+
+## 前処理の必要性
+
+これまで様々な統計手法を学んだ
+その際には分析に適したデータを利用した
+
+現実のデータを扱う際には, 分析手法を実行できるようにする"前処理"が必要となる
+現実のデータは多くの場合, 分析がしづらい状態で存在している
+
+## なぜデータ整形をRで行うのか
+
+GUI
+
+- ExcelなどのGUIでは操作の過程が残しづい
+- 似たようなデータで同じ作業をする場合, 1から同じ作業を繰り返す必要がある
+
+CUI
+
+- 全ての作業をコマンドとして入力する必要があり, 作業の過程は全て残せる
+- 作業過程を他人と共有でき, 手法の改善や再現性の確保が可能
+- 似たようなデータも入力するデータを変更すれば簡単に結果を得られる
+
+## パッケージの読み込み
+
+- `tidyverse`パッケージ(`dplyr`パッケージなどを含むパッケージ)がデータの前処理にはとても便利
+- `tidylog`パッケージを利用すると具体的にどのような操作が行われたか示されるのではじめは読み込んでおくと良い
+
+```{r}
+library(pacman)
+p_load(tidyverse, tidylog)
+```
+
+## 利用するデータ
+
+まず, R内にデフォルトで格納されている iris(アヤメの花のデータ) を使う
+
+```{r}
+head(iris)
+```
+
+## データ構造の確認
+
+`dplyr::glimpse`を利用して, データ構造を確認する
+
+```{r}
+dplyr::glimpse(iris)
+```
+
+# 列選択(select)
+
+## 列を選択する
+
+列を選択するには `dplyr::select()` を利用する
+第1引数に利用するデータ, それ以降にどの列を選択するのかなどを指定する
+
+## 列名指定による選択
+
+irisのデータからがく片の長さの列を取り出す
+それぞれ取り出したい列名を指定する
+ここでは, 第1引数で指定すべきデータは, パイプ関数で繋げているため指定しない
+
+```{r}
+iris |> 
+  select(Sepal.Length) |> 
+  head()
+```
+
+## 列番号指定による選択
+
+列選択は, 列の番号（最も左にあるものが1）で指定することもできる
+1列目と3列目を取り出す
+
+```{r}
+iris |> 
+  select(1, 3) |> 
+  head()
+```
+
+## 連続する列の指定
+
+連続する列番号で指定することもできる
+1列目から3列目を取り出す
+
+```{r}
+iris |> 
+  select(1:3) |> 
+  head()
+```
+
+連続する列はを列名でも指定できる
+Sepal.Lengthの列からPetal.Length列までを取り出す
+
+```{r}
+iris |> 
+  select(Sepal.Length:Petal.Length) |> 
+  head()
+```
+
+
+## 列の除外
+
+除きたい列がある場合には`!`もしくは`-`で除くことができる
+Speciesを除く
+
+```{r}
+iris |> 
+  select(!Species) |> 
+  head()
+```
+
+除きたい列は`c()`で複数選択することもできる
+
+```{r}
+iris |> 
+  select(!c(Sepal.Length, 
+            Petal.Length)) |> 
+  head()
+```
+
+## 文字列の一致による列選択(前方一致)
+
+指定した文字列と一致する列を選択することもできる
+列名の前方一致で列を選択するには, 第2引数以降に`starts_with(" ")`と書く
+デフォルトでは`" "`の中の文字の大文字と小文字は区別されない
+
+```{r}
+iris |> 
+  select(starts_with("petal")) |> 
+  head()
+```
+
+## 文字列の一致による列選択(後方一致)
+
+列名の後方一致で列を選択するには, 第2引数以降に`ends_with(" ")`と書く
+大文字と小文字を区別するためには, `ignore.case = FALSE`を追記する
+
+```{r}
+iris |> 
+  select(ends_with("Length", 
+                   ignore.case = FALSE)) |> 
+  head()
+```
+
+## 文字列の一致による列選択(部分一致)
+
+列名の部分一致で列を選択するには, 第2引数以降に`contains(" ")`と書く
+
+```{r}
+iris |> 
+  select(contains("al")) |> 
+  head()
+```
+
+## 文字列の一致による列選択(正規表現)
+
+正規表現で列を選択することもできる
+第2引数以降に`matches(".*.")`と書く
+
+```{r}
+iris |> 
+  select(matches(".i.")) |> 
+  head()
+```
+
+## 文字列の一致による列選択(事前指定)
+
+指定したい列名をあらかじめ指定し, その列を選択することもできる
+あらかじめ指定した列名を選択するには`one_of()`と書き, 指定する
+
+```{r}
+var_list <- c("Sepal.Length", "Petal.Width")
+iris |> 
+  select(one_of(var_list)) |> 
+  head()
+```
+
+## 列名の変更
+
+列名を別の名前に置き換えて選択することもできる
+そのためには, `新しい列名 = 選択したい列名`と書く
+
+```{r}
+iris |> 
+  select(var = Species) |> 
+  head()
+```
+
+置き換えたい列が複数ある場合は連番を振ってくれる
+
+```{r}
+iris |> 
+  select(var = contains("al")) |> 
+  head()
+```
+
+列名を変更するだけであれば`rename()`関数が利用できる
+
+```{r}
+iris |> 
+  rename(var = Species) |> 
+  head()
+```
+
+連番で並んでいる列を利用して選択することもできる
+その際には`num_range()`を利用し, prefixに共通する列名, rangeに連番の範囲, widthに連番の桁数を指定する
+
+```{r}
+dat <- iris |> 
+  select(var = contains("al"))
+dat |> 
+  select(num_range(prefix = "var", 
+                   range  = 1:3, 
+                   width  = 1)) |> 
+  head()
+```
+
+# 行選択(filter)
+
+## 行を選択する
+
+行を選択するには`dplyr::filter()`を利用する
+第一引数に利用するデータ, それ以降に行を選択する条件などを指定する
+irisのデータからがく片の長さが平均(5.84)より大きい行を取り出す
+
+```{r}
+iris |> 
+  dplyr::filter(Sepal.Length > 5.84) |> 
+  head()
+```
+
+## 条件に一致しない行の選択
+
+単一の値と等しくない行を選択するには`!=`で指定する
+
+```{r}
+iris |> 
+  filter(Species != "versicolor") |> 
+  head()
+```
+
+
+## 条件の範囲に該当する行の選択
+
+条件に当てはまる範囲で行を選択することもできる
+その際には`between()`で指定する
+
+```{r}
+iris |> 
+  filter(between(Sepal.Length, 5, 6)) |> 
+  head()
+```
+
+
+## 複数条件による行の選択(論理和)
+
+複数条件で行を選択する際に「または(論理和)」で指定することもできる
+論理和を利用する際には条件を`|`でつなぐ
+
+```{r}
+iris |> 
+  filter(Species != "setosa" | Sepal.Length > 5.5) |> 
+  head()
+```
+
+## 複数条件による行の選択(論理積)
+
+複数条件で行を選択する際に「かつ(論理積)」で指定することもできる
+論理積を利用する際には条件を`&`または`,`でつなぐ
+
+```{r}
+iris |> 
+  filter(Species != "setosa" & Sepal.Length > 5.5) |> 
+  head()
+```
+
+
+## 複数条件による行の選択(排他的論理和)
+
+同様に排他的論理和を選択することもできる
+
+```{r}
+iris |> 
+  filter(xor(Sepal.Length > 5.84, 
+             Petal.Length >= 3.76)) |> 
+  head()
+```
+
+## 部分集合を利用した行の選択
+
+部分集合に一致する行を選択するには`%in%`演算子を利用する
+
+```{r}
+iris |> 
+  filter(Species %in% c("setosa", "virginica")) |> 
+  head()
+```
+
+# その他の行操作
+
+## 重複の削除(distinct)
+
+重複を削除するには`dplyr`::`distinct()`を利用する
+
+```{r}
+iris |> 
+  distinct(Species) |> 
+  head()
+```
+
+指定した列以外も残す場合には`.keep_all = TRUE`と記載する
+結果を見るとsetosa, versicolor, virginicaのそれぞれ最初に登場した行が選択されている
+
+```{r}
+iris |> 
+  distinct(Species, .keep_all = TRUE) |> 
+  head()
+```
+
+## 行番号による抽出
+
+行番号を指定して行を選択するには`dplyr`::`slice()`を利用する
+
+```{r}
+iris |> 
+  slice(10:15) |> 
+  head()
+```
+
+
+# 列変換(mutate)
+
+## 列を変換する
+
+列を変換するにはdplyr::mutate()を利用する
+第一引数に利用するデータ, それ以降に追加する列名とどのように変換するのかなどを指定する
+irisのデータからがく片の長さを2倍したものと2乗したものをそれぞれtwiceとsquareに格納する
+
+```{r}
+iris |> 
+  dplyr::mutate(twice  = Sepal.Length * 2,
+                square = Sepal.Length^2) |> 
+  head()
+```
+
+
+## 列の上書き
+
+追加する列名の場所に既存の列名を指定すると値が上書きされる
+
+```{r}
+iris |> 
+  dplyr::mutate(Sepal.Length = Sepal.Length * 2) |> 
+  head()
+```
+
+
+## if文を利用した列変換
+
+if文を利用して条件に従って値を指定することができる
+
+```{r}
+iris |> 
+  mutate(TF = if_else(condition = 
+                        Sepal.Length > mean(iris$Sepal.Length),
+                      true      = TRUE, 
+                      false     = FALSE)) |> 
+  head()
+```
+
+## 複数条件を利用した列変換
+
+複数の条件を利用するには`case_when`を利用する
+
+```{r}
+iris |> 
+  mutate(SpeciesNo = case_when(
+    Species == "setosa"     ~ "A",
+    Species == "versicolor" ~ "B",
+    TRUE                    ~ "C"
+  )) |> 
+  head()
+```
+
+# 縦横変換(pivot_longer, pivot_wider)
+
+## 縦横変換する
+
+横型データを縦型データにしたり, その逆にしたりするには, `tidyr::pivot_longer()`, `tidyr::pivot_wider()`を利用する.
+
+コンピューター言語は基本的に縦型データのほうが扱いやすい
+R界隈では特にtidy dataという
+
+## 縦型データへの変換
+
+`pivot_longer()`の場合は, 第1引数に利用するデータ, 第2引数に残す列名,  第3引数に元の変数名を格納する列名, 第4引数に元の変数の値を格納する列名を指定する
+ここでは先に各個体にidを振っている
+
+irisのデータを使って, 種別以外の変数を縦型に変換する
+
+```{r}
+iris_long <- iris |> 
+ rowid_to_column("id") |> 
+  pivot_longer(cols      = !c(id, Species),
+               names_to  = "Var",
+               values_to = "value") 
+iris_long |> head()
+```
+
+## 横型データへの変換
+
+`pivot_wider()`の場合は, 第1引数に利用するデータ, 第2引数に変数名が格納してある列名, 第3引数に変数の値が格納してある列名を指定する
+
+```{r}
+iris_long |> 
+  pivot_wider(names_from  = Var,
+              values_from = value) |> 
+  head()
+```
+
+## 縦型データを利用した作図
+
+縦型データなら複数のグラフも簡単に描画できる
+
+```{r}
+ggplot(iris_long) +
+  aes(x    = value,
+      fill = Species) +
+  geom_histogram() +
+  facet_wrap(~Var, 
+             scales = "free")
+```
+
+同じようなことを通常のwideなデータで行う
+`patchwork`パッケージを使うと複数のグラフを並べやすい
+
+```{r}
+p_load(patchwork)
+p <- ggplot(iris) +
+  aes(fill = Species)
+p1 <- p +
+  geom_histogram(aes(x = Petal.Length))
+p2 <- p +
+  geom_histogram(aes(x = Petal.Width))
+p3 <- p +
+  geom_histogram(aes(x = Sepal.Length))
+p4 <- p +
+  geom_histogram(aes(x = Sepal.Width))
+(p1 + p2) / (p3 + p4) +
+  plot_layout(guides = 'collect')
+```
+
+
+# データ結合(*_join)
+
+## データを結合する
+
+データセットとデータセットを結合するには, `*_join`関数群を使う
+irisのデータだと使いづらいので,  `band_*` のデータを使う
+
+members
+
+```{r}
+dplyr::band_members
+```
+
+instruments
+
+```{r}
+dplyr::band_instruments
+```
+
+instruments2
+
+```{r}
+dplyr::band_instruments2
+```
+
+## `full_join()`
+
+2つのデータセットの全ての行と列を結合するには`dplyr`::`full_join()`を使う
+第1引数に結合されるデータ, 第2引数に結合するデータ, 第3引数に結合に使用する列を指定す
+
+```{r}
+full_join(band_members, 
+          band_instruments,
+          by = "name")
+```
+
+## `left_join()`
+
+左側のデータセットにある行を基準に右側のデータセットを結合するには`dplyr`::`left_join()`を使う
+結合に利用するキーとなる列名が異なる場合は, `c("A" = "B")`とする
+
+```{r}
+left_join(band_members,
+          band_instruments2,
+          by = c("name" = "artist"))
+```
+
+## `inner_join()`
+一致する行だけを残したい場合は`dplyr`::`inner_join()`を使う
+
+```{r}
+inner_join(band_members,
+           band_instruments,
+           by = "name")
+```
+
+## `semi_join()`
+
+一致する行だけを残し, なおかつ結合されるデータの列のみを残すには, `dplyr`::`semi_join()`を使う
+
+```{r}
+semi_join(band_members,
+          band_instruments,
+          by = "name")
+```
+
+## `anti_join()`
+
+一致しなかった行だけを選択するには`dplyr`::`anti_join()`を使う
+
+```{r}
+anti_join(band_members, 
+          band_instruments,
+          by = "name")
+```
+
+## `bind_cols()`
+
+データセットとデータセットを横に結合する(列を増やす)には`dplyr`::`bind_cols()`を使う
+
+```{r}
+bind_cols(band_instruments,
+          band_instruments2)
+```
+
+## `bind_rows()`
+
+データセットとデータセットを縦に結合する(行を増やす)には`dplyr`::`bind_rows()`を使う
+
+```{r}
+bind_rows(band_instruments, 
+          band_instruments)
+```
+
+# e-statのデータをRを使って整形
+
+e-statなどのオープンデータはそのままではRでは利用できないことが多い
+ここまでで扱ったことなどを総動員してデータを整形する
+
+```{r}
+dat <- readxl::read_excel(here::here('data', 'sample.xls'),
+                          skip = 12) |> 
+  select(!c(1:8, 11)) |> 
+  slice(7:53) |> 
+  rename(pref_code = 1, 
+         pref_name = 2,
+         pref_en = 3,
+         pop = 4) |> 
+  select(1:4, 18:22) |> 
+  pivot_longer(cols      = !c(1:4),
+               names_to  = "age",
+               values_to = "value") |> 
+  mutate(value = as.numeric(value),
+         pop   = as.numeric(pop)) |> 
+  group_by(pref_code) |> 
+  summarise(pref_name = first(pref_name),
+            pop       = first(pop),
+            over65    = sum(value)) |> 
+  mutate(aged_ratio = over65 / pop)
+
+dat |> head()
+```
+
