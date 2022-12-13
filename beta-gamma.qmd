@@ -1,0 +1,348 @@
+---
+title: "ベータ回帰, ガンマ回帰, 指数-ガウス回帰"
+output: html_notebook
+---
+
+# Beta Regression
+
+### ベータ回帰モデルで利用するデータ
+
+- `betareg`パッケージの`GasolineYield`データを用いる
+    - 原油からガソリンが得られる割合(`yield`), 原油が全て気化した温度(華氏, `temp`), 重力や圧力, 原油の10%が気化した温度から因子(`batch`)などが含まれる
+
+```{r}
+library(pacman)
+p_load(betareg)
+data("GasolineYield", package = "betareg")
+names(GasolineYield)
+```
+
+### ベータ回帰モデルで利用するデータの要約統計量
+
+- データの要約統計量を確認する
+
+```{r}
+summary(GasolineYield)
+```
+
+### ベータ回帰モデルで利用するデータのヒストグラム
+
+- `yield`の概要をヒストグラムを描画して確認する
+
+```{r}
+p_load(ggplot2)
+ggplot(GasolineYield) +
+  aes(x = yield) +
+  geom_histogram()
+```
+
+###
+
+- `temp`の概要をヒストグラムを描画して確認する
+
+```{r}
+ggplot(GasolineYield) +
+  aes(x = temp) +
+  geom_histogram()
+```
+
+### ベータ回帰モデルで利用するデータの散布図
+
+- 変数間の関係をペアプロットで確認する
+
+```{r}
+p_load(GGally, dplyr)
+GasolineYield |> 
+  dplyr::select(yield, 
+                temp,
+                batch) |> 
+  ggpairs()
+```
+
+### ベータ回帰モデルの推定
+
+- ベータ回帰モデルを推定する
+    - `betareg`パッケージの`betareg()`関数を用いる
+
+```{r}
+gs_beta <- betareg(yield ~ batch + temp,
+                   data = GasolineYield)
+```
+
+### ベータ回帰モデルの結果
+
+```{r}
+summary(gs_beta)
+```
+
+
+### 推定結果の確認
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+GasolineYield |> 
+  mutate(
+    predict = predict(gs_beta,
+                      type = "response")) |>
+  ggplot() +
+  aes(x = yield,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1,
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+### LOOCV
+
+- ベータ回帰のLOOCVが`caret`パッケージに実装されていないので、自分で計算する
+
+```{r}
+p_load(tibble, dplyr)
+n <- nrow(GasolineYield); result <- tibble()
+for (i in 1:n){
+  data  <- GasolineYield[-i,]
+  reg   <- betareg(yield ~ temp + batch, data = data)
+  pred  <- predict(reg,  newdata = GasolineYield[i, ])
+  result[i, 1] <- GasolineYield[i, 1]
+  result[i, 2] <- pred
+}
+result |>
+  rename(obs = 1, pred = 2) |> 
+  mutate(diff = obs - pred) |> 
+  summarise(RMSE = diff^2 |> mean() |> sqrt(),
+            R2   = cor(obs, pred)^2,
+            MAE  = diff |> abs() |> mean())
+```
+
+# Gamma Regression
+
+### ガンマ回帰モデルで利用するデータ
+
+- `Zelig`パッケージの`coalition`データを利用する
+    - ヨーロッパ(+カナダ)15カ国における連立政権の生存期間(`duration`)に関するデータ
+    - 議会における政党数の指標(`fract`)や内閣が議会で多数派を占めるのかを示すダミー変数(`numst2`)などが含まれる
+
+```{r}
+p_load_gh("IQSS/Zelig")
+data(coalition, package = "Zelig")
+names(coalition)
+```
+
+### ガンマ回帰モデルで利用するデータの要約統計量
+
+- データの要約統計量を確認する
+
+```{r}
+summary(coalition)
+```
+
+### ガンマ回帰モデルで利用するデータのヒストグラム
+
+- `duration`の概要をヒストグラムを描画して確認する
+
+```{r}
+ggplot(coalition) +
+  aes(x = duration,
+      y = ..density..) +
+  geom_histogram() +
+  geom_density(fill  = "lightblue", 
+               alpha = 0.5)
+```
+
+###
+
+- `fract`の概要をヒストグラムを描画して確認する
+
+```{r}
+ggplot(coalition) +
+  aes(x = fract,
+      y = ..density..) +
+  geom_histogram() +
+  geom_density(fill  = "lightblue", 
+               alpha = 0.5)
+```
+
+### ガンマ回帰モデルで利用するデータの散布図
+
+- 変数間の関係をペアプロットで確認する
+
+```{r}
+coalition |> 
+  dplyr::select(duration,
+                fract, 
+                numst2) |> 
+  mutate(across(numst2,
+                as.factor)) |> 
+  ggpairs()
+```
+
+### ガンマ回帰モデルの推定
+
+- ガンマ回帰モデルを推定する
+
+```{r}
+coa_gam <- glm(duration ~ fract + numst2,
+               data   = coalition,
+               family = Gamma)
+```
+
+### ガンマ回帰モデルの結果
+
+```{r}
+summary(coa_gam)
+```
+
+### 推定結果の確認
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+coalition |> 
+  mutate(predict =predict(coa_gam,
+                          type = "response")) |> 
+  ggplot() +
+  aes(x = duration,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1, 
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+### 予測
+
+- 変数の影響がわかりづらいので予測値を計算する
+
+```{r}
+p_load(tidyr)
+new_data <- expand_grid(fract = 350:870,
+                        numst2 = 0:1) %>%
+  mutate(pred = predict(coa_gam, 
+                        newdata = .)) |> 
+  mutate(across(numst2, as.factor)) 
+```
+
+### 予測値のプロット
+
+```{r}
+ggplot(data = new_data) +
+  aes(x      = fract, 
+      y      = pred,
+      colour = numst2) +
+  geom_line()
+```
+
+# Ex-Gaussian Regression
+
+### 指数-ガウス分布
+
+- 指数-ガウス分布は指数分布とガウス(正規)分布の重なったような分布
+- シミュレーションデータによって確認する
+
+```{r}
+p_load(gamlss, tidyr)
+df <- data.frame(
+  norm    = rnorm(1000, mean = 10, sd = 1),
+  exp     = rexp(1000,  rate = 0.5),
+  exGauss = rexGAUS(2000,
+                    mu    = 10,
+                    sigma = 1,
+                    nu    = 1 / 0.5)) |> 
+  mutate(norm_exp = norm + exp) |>
+  tidyr::pivot_longer(cols      = everything(),
+                      names_to  = "key",
+                      values_to = "value") |>
+  transform(key = factor(key,
+                         levels = c("norm", "exp",
+                                    "norm_exp","exGauss")))
+```
+
+### 指数-ガウス分布のプロット
+
+```{r}
+ggplot(df) +
+  aes(value, fill = key) +
+  geom_histogram() +
+  facet_wrap(~key)
+```
+
+### 指数-ガウス回帰モデルで利用するデータ
+
+- `lme4`パッケージの`sleepstudy`データを利用する
+    - 睡眠時間を制限された被験者の反応速度(`Reaction`)
+
+```{r}
+data(sleepstudy, package = "lme4")
+names(sleepstudy)
+```
+
+### 指数-ガウス回帰モデルで利用するデータの要約統計量
+
+- データの要約統計量を確認する
+
+```{r}
+summary(sleepstudy)
+```
+
+### 指数-ガウス回帰モデルで利用するデータのヒストグラム
+
+- `Reaction`の概要をヒストグラムを描画して確認する
+
+```{r}
+ggplot(sleepstudy) + 
+  aes(x = Reaction,
+      y = ..density..) +
+  geom_histogram() +
+  geom_density(fill  = "lightblue", 
+               alpha = 0.5)
+```
+
+### 指数- ガウス回帰モデルで利用するデータの散布図
+
+- 変数間の関係を散布図で確認する
+
+```{r}
+ggplot(sleepstudy) +
+  aes(x = Days,
+      y = Reaction) +
+  geom_point()
+```
+
+### 指数-ガウス回帰モデルの推定
+
+- 指数-ガウス回帰モデルを推定する
+    - `gamlss`パッケージの`gamlss()`関数を用いる
+
+```{r}
+sleep_model <- gamlss(Reaction ~ Days,
+                      data      = sleepstudy,
+                      family    = exGAUS, 
+                      mu.fix    = FALSE,
+                      sigma.fix = FALSE,
+                      nu.fix    = FALSE)
+```
+
+
+### 指数-ガウス回帰モデルの結果
+
+```{r}
+summary(sleep_model)
+```
+
+### 推定結果の確認
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+sleepstudy |> 
+  mutate(
+    predict = predict(sleep_model,
+                      type = "response")) |> 
+  ggplot(aes(Reaction, predict)) +
+  geom_point() +
+  geom_abline(slope     = 1,
+              intercept = 0, 
+              linetype  = "dashed")
+```
