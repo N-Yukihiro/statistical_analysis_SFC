@@ -1,0 +1,385 @@
+---
+title: "スパース推定"
+format: html
+---
+
+# Today's dataset
+
+### 今日使うデータ
+
+- larsパッケージの`diabetes`データを利用する
+- 糖尿病患者の1年後の疾患進行度合いを応答変数に, デモグラフィック属性や血液状態などを説明変数としている
+- データは少し複雑な構造をしている
+
+```{r}
+library(pacman)
+p_load(lars)
+data("diabetes", package = "lars")
+```
+
+### データ構造
+
+- データ構造を確認する
+
+```{r}
+p_load(dplyr)
+glimpse(diabetes)
+```
+
+### データの変換
+
+- データを扱いやすいように必要な変数だけデータフレームに変換する
+    - `magrittr`パッケージの`%$%`演算子を利用するとオブジェクトの中に直接アクセスできる
+
+```{r}
+p_load(magrittr)
+diabetes <- diabetes %$% 
+  cbind(y, x) |> 
+  as.data.frame()
+```
+
+### 記述統計
+
+- 説明変数はすべて標準化されている
+
+```{r}
+diabetes |> 
+  summary()
+```
+
+### ヒストグラム
+
+- データの概要をヒストグラムを描画して確認する
+
+```{r}
+p_load(ggplot2)
+ggplot(diabetes) +
+  aes(x = y) +
+  geom_histogram()
+```
+
+### 散布図
+
+- 変数間の関係をペアプロットで確認する
+
+```{r}
+diabetes |> 
+  dplyr::select(1:5) |> 
+  GGally::ggpairs()
+```
+
+# Linear Regression Model
+
+### 線形回帰モデルの推定
+
+- まずは線形回帰分析を行う
+- `y ~ .`は応答変数を除いたすべての変数を説明変数とするという指示
+
+```{r}
+dia_lm <- lm(y ~ ., 
+             data = diabetes)
+```
+
+### 線形回帰モデルの結果
+
+```{r}
+p_load(jtools)
+summ(dia_lm)
+```
+
+### 推定結果の確認
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+diabetes |> 
+  mutate(predict =
+           predict(dia_lm, 
+                   type = "response")) |>
+  ggplot() +
+  aes(x = y,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1, 
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+# Ridge Regression Model
+
+### Ridge回帰モデルの推定
+
+- Ridge回帰モデルを推定する
+- Ridge回帰を行うには, `glmnet`パッケージと`glmnetUtils`パッケージを利用する
+    - `glmnet(alpha = 0)`と指定するとRidge回帰を行うことができる
+
+```{r}
+p_load(glmnet, glmnetUtils)
+dia_ridge <- glmnet(y ~ .,
+                    data  = diabetes, 
+                    alpha = 0)
+```
+
+###
+
+- 回帰係数と$log(\lambda)$との関係を可視化する
+
+```{r}
+p_load(ggfortify)
+autoplot(dia_ridge)
+```
+
+###
+
+- 回帰係数と$\lambda$との関係を可視化する
+
+```{r}
+autoplot(dia_ridge, xvar = "lambda")
+```
+
+### 最適なラムダの決定(Ridge)
+
+- クロスバリデーションによって, 最適な$\lambda$を決定する
+    - そのために, `cv.glmnet()`関数を利用する
+
+```{r}
+dia_ridge_cv <- cv.glmnet(y ~ ., 
+                          data  = diabetes, 
+                          alpha = 0)
+```
+
+- 左側の縦点線が, MSEが最小となる$log(\lambda)$となる
+
+```{r}
+autoplot(dia_ridge_cv)
+```
+
+- Cross-varidated errorの最小値, $\lambda$の最小値, 及びその対数値は以下の通り
+
+```{r}
+min(dia_ridge_cv$cvm)
+dia_ridge_cv$lambda.min
+log(dia_ridge_cv$lambda.min)
+```
+
+```{r}
+autoplot(dia_ridge, 
+         xvar = "lambda") +
+  geom_vline(xintercept = log(dia_ridge_cv$lambda.min),
+             linetype   = "dashed")
+```
+
+### Ridge回帰によって推定されたパラメータ
+
+- MSEが最小となる時の$\lambda$に対応するパラメータ
+
+```{r}
+coef(dia_ridge_cv, s = "lambda.min")
+```
+
+- MSEが最小となるときのMSEの上側1seとなるときの$\lambda$に対応するパラメータ
+
+```{r}
+coef(dia_ridge_cv, s　= "lambda.1se")
+```
+
+### 推定結果の確認
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+diabetes %>%
+  mutate(predict = 
+           predict(dia_ridge_cv,
+                   s = "lambda.min",
+                   newdata = .)) |>
+  ggplot() +
+  aes(x = y,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1, 
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+# Lasso Regression Model
+
+### Lasso回帰モデルの推定
+
+- Lasso回帰モデルを推定する
+- Lasso回帰を行うには, `glmnet(alpha = 1)`を利用する
+
+```{r}
+dia_lasso <- glmnet(y ~ ., 
+                    data  = diabetes, 
+                    alpha = 1)
+```
+
+- 回帰係数と$log(\lambda)$との関係を可視化する
+
+```{r}
+autoplot(dia_lasso)
+```
+
+- 回帰係数と$\lambda$との関係を可視化する
+
+```{r}
+autoplot(dia_lasso, xvar = "lambda")
+```
+
+### 最適なラムダの決定(Lasso)
+
+- クロスバリデーションによって, 最適な$\lambda$を決定する
+
+```{r}
+dia_lasso_cv <- cv.glmnet(y ~ ., 
+                          data  = diabetes, 
+                          alpha = 1)
+```
+
+- 左側の縦点線が, MSEが最小となる$log(\lambda)$となる
+
+```{r}
+autoplot(dia_lasso_cv)
+```
+
+- Cross-varidated errorの最小値, $\lambda$の最小値, 及びその対数値は以下の通り
+
+```{r}
+min(dia_lasso_cv$cvm)
+dia_lasso_cv$lambda.min
+log(dia_lasso_cv$lambda.min)
+```
+
+```{r}
+autoplot(dia_lasso,
+         xvar = "lambda") +
+  geom_vline(xintercept = log(dia_lasso_cv$lambda.min),
+             linetype   = "dashed")
+```
+
+### Lasso回帰によって推定されたパラメータ
+
+- MSEが最小となる時の$\lambda$に対応するパラメータ
+
+```{r}
+coef(dia_lasso_cv, s = "lambda.min")
+```
+
+- MSEが最小となるときのMSEの上側1seとなるときのλに対応するパラメータ
+
+```{r}
+coef(dia_lasso_cv, s = "lambda.1se")
+```
+
+### 推定結果の確認
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+diabetes %>%
+  mutate(predict = 
+           predict(dia_lasso_cv,
+                   s = "lambda.min",
+                   newdata = .)) |>
+  ggplot() +
+  aes(x = y, 
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1, 
+              intercept = 0,
+              linetype  = "dashed")
+```
+
+# EN Regression Model
+
+### EN回帰モデルの推定
+
+- EN回帰モデルを推定する
+- EN回帰を行うには, `glmnet`の引数`alpha`を$0 \sim 1$で指定する
+- ここでは, `alpha = 0.5`で実習を行う
+
+```{r}
+dia_EN <- glmnet(y ~ ., 
+                 data  = diabetes, 
+                 alpha = 0.5)
+```
+
+- 回帰係数と$log(\lambda)$との関係を可視化する
+
+```{r}
+autoplot(dia_EN)
+```
+
+- 回帰係数と$\lambda$との関係を可視化する
+
+```{r}
+autoplot(dia_EN, xvar = "lambda")
+```
+
+### 最適なラムダの決定(EN)
+
+- クロスバリデーションによって, 最適な$\lambda$を決定する
+
+```{r}
+dia_EN_cv <- cv.glmnet(y ~ ., 
+                       data  = diabetes, 
+                       alpha = 0.5)
+```
+
+- 左側の縦点線が, MSEが最小となる$log(\lambda)$とななる
+
+```{r}
+autoplot(dia_EN_cv)
+```
+
+- Cross-varidated errorの最小値, $\lambda$の最小値, 及びその対数値は以下の通り
+
+```{r}
+min(dia_EN_cv$cvm)
+dia_EN_cv$lambda.min
+log(dia_EN_cv$lambda.min)
+```
+
+###
+
+```{r}
+autoplot(dia_EN, xvar = "lambda") +
+  geom_vline(xintercept = log(dia_EN_cv$lambda.min),
+             linetype   = "dashed")
+```
+
+### EN回帰によって推定されたパラメータ
+
+- MSEが最小となる時の$\lambda$に対応するパラメータ
+
+```{r}
+coef(dia_EN_cv, s = "lambda.min")
+```
+
+###
+
+- MSEが最小となるときのMSEの上側1seとなるときのλに対応するパラメータ
+
+```{r}
+coef(dia_EN_cv, s = "lambda.1se")
+```
+
+### 推定結果の確認
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+diabetes %>%
+  mutate(predict =
+           predict(dia_EN_cv, 
+                   s = "lambda.min",
+                   newdata = .)) |>
+  ggplot() +
+  aes(x = y,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1, 
+              intercept = 0,
+              linetype  = "dashed")
+```
