@@ -1,0 +1,407 @@
+---
+title: "マルチレベルモデル"
+output: html_notebook
+---
+
+# Today's dataset
+
+### 今日使うデータ
+
+- 首都圏の市町村別住宅地地価のデータを用いる
+- [ここ](http://web.sfc.keio.ac.jp/~maunz/BS19/data/lph.csv) からダウンロードする
+- LPH(住宅地地価(万円 / $m^2$), POPD(常住人口密度(千人 / $km^2$)), EMP3D(第三次産業従業人口(千人 / $km^2$)), AREA(都県名)などから成る
+
+```{r}
+library(pacman)
+p_load(here, readr)
+lph <- readr::read_csv(here("data", "lph.csv"))
+```
+
+### データ構造
+
+- データ構造を確認する
+
+```{r}
+p_load(dplyr)
+glimpse(lph)
+```
+
+### 記述統計
+
+- 記述統計を確認する
+
+```{r}
+summary(lph)
+```
+
+### ヒストグラム
+
+- データの概要をヒストグラムを描画して確認する
+
+```{r}
+p_load(ggplot2)
+ggplot(lph) +
+  aes(x = LPH) +
+  geom_histogram()
+```
+
+### 散布図
+
+- 変数間の関係をペアプロットで確認する
+
+```{r}
+p_load(GGally)
+lph |> 
+  select(LPH, POPD, EMP3D) |> 
+  ggpairs()
+```
+
+### 地域ごとの散布図
+
+- 地域ごとに散布図と回帰直線を描く
+
+```{r}
+lph |> 
+  ggplot() +
+  aes(x      = EMP3D,
+      y      = LPH,
+      colour = AREA) +
+  geom_point() +
+  geom_smooth(method = "lm", 
+              se     = FALSE)
+```
+
+###
+
+```{r}
+lph |> 
+  ggplot() +
+  aes(x = EMP3D,
+      y = LPH) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~AREA, 
+             scales = "free")
+```
+
+# Linear Model
+
+### 線形回帰による推計
+
+- まずは, 最小二乗法によって線形回帰を行う
+
+```{r}
+lph_lm1 <- lm(LPH ~ POPD + EMP3D, data = lph)
+lph_lm2 <- lm(LPH ~ POPD, data = lph)
+lph_lm3 <- lm(LPH ~ EMP3D, data = lph)
+```
+
+### 結果の確認
+
+- `stargazer::stargazer()`関数を利用して3つのモデルを比較する
+
+```{r}
+p_load(stargazer)
+stargazer(lph_lm1, lph_lm2, lph_lm3,
+          type              = "text",
+          style             = "all",
+          star.cutoffs      = NA,
+          omit.table.layout = 'n',
+          ci                = TRUE,
+          align             = TRUE)
+```
+
+
+### 回帰係数の図示
+
+- `coefplot::coefplot()`関数を利用して回帰係数を図示する
+
+```{r}
+p_load(coefplot)
+coefplot::coefplot(lph_lm1,
+                   lph_lm2,
+                   lph_lm3)
+```
+
+### ANOVAによるモデル比較
+
+- ANOVAによってモデルを比較する
+
+```{r}
+anova(lph_lm1, lph_lm2, lph_lm3)
+```
+
+### AICによるモデル比較
+
+- AICによってモデルを比較する
+
+```{r}
+AIC(lph_lm1, lph_lm2, lph_lm3)
+```
+
+### BICによるモデル比較
+
+- BICによってモデルを比較する
+
+```{r}
+BIC(lph_lm1, lph_lm2, lph_lm3)
+```
+
+### モデル1の予測精度を図示
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+lph |> 
+  mutate(
+    predict = predict(lph_lm1,
+                      type = "response")) |> 
+  ggplot() +
+  aes(x = LPH,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1, 
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+### マルチレベルモデルにより近づけた線形回帰モデル
+
+- 地域ごとに異なる切片, 異なる回帰係数を求めるには交互作用項を利用しても良い
+    - 交互作用項を利用するには, 変数を`+`ではなく`*`でつなぐ
+    - 一般的に連続変数は平均が0になるように中心化する
+    - 地域ごとの係数は算出できるが, その平均や分散はわからない
+    - 等分散性の仮定は外れない
+
+```{r}
+lph_c <- lph |> 
+  mutate(POPD_c  = POPD  - mean(POPD),
+         EMP3D_c = EMP3D - mean(EMP3D))
+lph_inter <- lm(LPH ~ AREA * POPD_c + AREA * EMP3D_c,
+                data = lph_c)
+p_load(jtools)
+summ(lph_inter)
+```
+
+### 交互作用項を利用したモデルの予測精度を図示
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+lph |> 
+  mutate(
+    predict = predict(lph_inter,
+                      type = "response")) |> 
+  ggplot() +
+  aes(x = LPH,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1, 
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+# Multi-Level Model
+
+### マルチレベルモデル
+
+- マルチレベルモデルを実行するには`lmer()`関数を利用する
+    - `lme4`パッケージにも含まれるが、　`lmerTest`パッケージの`lmer`を利用すると検定まで行ってくれる
+- 通常の説明変数に追加すると固定効果を, `(variables | Groups)`に追加するとランダム効果を推定する
+    - `1`は切片を表す
+- ここでは、都県(及び政令市)毎にランダムなモデルを推定する
+- マルチレベルの種類は主に以下3つ
+
+1. 傾きが固定で切片がランダムなモデル
+1. 傾きがランダムで切片が固定されたモデル
+1. 傾きと切片がランダムなモデル
+
+### 傾きが固定で切片がランダムなモデル
+
+- 傾きが固定で切片がランダムなモデルを推定するには, 説明変数に`(1 | Group)`を追加する
+- 説明変数に`-1`を追加しないと, 切片の平均が0となる
+
+```{r}
+p_load(lmerTest)
+lph_lme1_1 <- lmer(LPH ~ POPD + EMP3D 
+                         + (1 | AREA),
+                   data = lph)
+lph_lme1_2 <- lmer(LPH ~ -1 + POPD + EMP3D 
+                         + (1 | AREA),
+                   data = lph)
+```
+
+###
+
+```{r}
+p_load(jtools)
+summ(lph_lme1_1)
+```
+
+###
+
+```{r}
+ranef(lph_lme1_1)
+```
+
+```{r}
+p_load(magrittr)
+ranef(lph_lme1_1)$AREA |>
+  summary
+```
+
+###
+
+```{r}
+jtools::summ(lph_lme1_2)
+```
+
+###
+
+```{r}
+ranef(lph_lme1_2)
+```
+
+### 傾きがランダムで切片が固定されたモデル
+
+- 傾きがランダムで切片が固定されたモデルを推定するには, 説明変数に`(-1 + variables | Group)`を追加する
+- 固定効果とランダム効果の双方を推定するとランダム効果は平均が0となる
+
+```{r}
+lph_lme2_1 <- lmer(LPH ~ (-1 + POPD + EMP3D | AREA),
+                   data = lph)
+lph_lme2_2 <- lmer(LPH ~ POPD + EMP3D 
+                         + (-1 + POPD + EMP3D | AREA),
+                   data = lph)
+```
+
+###
+
+```{r}
+jtools::summ(lph_lme2_1)
+```
+
+###
+
+```{r}
+ranef(lph_lme2_1)
+```
+
+###
+
+```{r}
+ranef(lph_lme2_1)$AREA |>
+  summary
+```
+
+###
+
+```{r}
+jtools::summ(lph_lme2_2)
+```
+
+###
+
+```{r}
+ranef(lph_lme2_2)
+```
+
+### 傾きと切片がランダムなモデル
+
+- 傾きと切片がランダムなモデルを推定するには, 説明変数に`(variables | Group)`を追加する
+- 固定効果とランダム効果の双方を推定するとランダム効果は平均が0となる
+
+```{r}
+lph_lme3_1 <- lmer(LPH ~ (POPD + EMP3D | AREA),
+                   data = lph)
+lph_lme3_2 <- lmer(LPH ~ POPD + EMP3D 
+                   + (POPD + EMP3D | AREA),
+                   data = lph)
+```
+
+###
+
+```{r}
+jtools::summ(lph_lme3_1)
+```
+
+###
+
+```{r}
+ranef(lph_lme3_1)$AREA |> 
+  summary
+```
+
+###
+
+```{r}
+jtools::summ(lph_lme3_2)
+```
+
+###
+
+```{r}
+ranef(lph_lme3_2)
+```
+
+### モデル比較
+
+- anovaによってモデルを比較する
+
+```{r}
+anova(lph_lme1_1, lph_lme1_2, 
+      lph_lme2_1, lph_lme2_2,
+      lph_lme3_1, lph_lme3_2)
+```
+
+### AIC
+
+- AICによってモデルを比較する
+
+```{r}
+AIC(lph_lme1_1, lph_lme1_2, 
+    lph_lme2_1, lph_lme2_2,
+    lph_lme3_1, lph_lme3_2)
+```
+
+### BIC
+
+- BICによってモデルを比較する
+
+```{r}
+BIC(lph_lme1_1, lph_lme1_2, 
+    lph_lme2_1, lph_lme2_2,
+    lph_lme3_1, lph_lme3_2)
+```
+
+### 交互作用項を利用したモデルの予測精度を図示
+
+- 推定された結果を散布図上に表示して確認する
+
+```{r}
+lph |> 
+  mutate(
+    predict = predict(lph_lme3_2,
+                      type = "response")) |> 
+  ggplot() +
+  aes(x = LPH,
+      y = predict) +
+  geom_point() +
+  geom_abline(slope     = 1, 
+              intercept = 0, 
+              linetype  = "dashed")
+```
+
+### ベイズ推定
+
+- ベイズ推定をするためには, `brms`パッケージを利用するのが便利
+- RStudio Cloudでは利用が少しむずかしいので, 自身のPC等で試したい方はどうぞ
+    - https://rstudio.cloud/project/56157 を利用して体験するのもあり
+    - 参考: https://discourse.mc-stan.org/t/stan-now-mostly-working-on-rstudio-cloud/5725/6
+
+```{r}
+p_load(brms)
+lph.brm <- brm(LPH ~ POPD + EMP3D 
+                     + (POPD + EMP3D|AREA),
+               data=lph)
+```
