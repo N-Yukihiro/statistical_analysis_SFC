@@ -1,0 +1,288 @@
+---
+title: "状態空間モデル"
+format: html
+---
+
+# Today's dataset
+
+### 今日使うデータ
+
+- datasetsパッケージに含まれるNileデータを用いる
+- 1871-1970年の100年間のナイル川での年間河川流量($10^8 m^3$) に関する時系列データ
+- 1898年のアスワンダム建設により, 流量が変化している
+- 流量データのみが格納されているため, 年情報を追加したデータセットに変換する
+
+```{r}
+library(pacman)
+p_load(tibble, dplyr)
+data(Nile, package = "datasets")
+Nile_df <- tibble("flow" = Nile,
+                  "year" = 1871:1970) |> 
+  mutate(flow = as.numeric(flow))
+```
+
+### データ構造
+
+- データ構造を確認する
+
+```{r}
+glimpse(Nile_df)
+```
+
+### 記述統計
+
+- 記述統計を確認する
+
+```{r}
+summary(Nile_df)
+```
+
+### データの可視化1
+
+- ナイル川の流量を可視化して概要を把握する
+
+```{r}
+p_load(ggplot2)
+ggplot(Nile_df) +
+  aes(x = year,
+      y = flow) +
+  geom_line(colour = "blue") +
+  labs(y = "Annual Flow", 
+       x = "Year") 
+```
+
+### データの可視化2
+
+- ナイル川の流量を可視化して概要を把握する
+    - 最初の年の流量を1となるように基準化する
+
+```{r}
+Nile_df |> 
+  mutate(flow_ratio = flow / first(flow)) |> 
+  ggplot() +
+  aes(x = year,
+      y = flow_ratio) +
+  geom_line(colour = "blue") +
+  labs(y = "Annual Flow", 
+       x = "Year") 
+```
+
+### データの可視化3
+
+- ナイル川の流量を可視化して概要を把握する
+    - 前年からの変化を計算する
+    
+```{r}
+p_load(magrittr)
+Nile_df |> 
+  mutate(flow_diff = subtract(flow |> log(),
+                              flow |> lag() |> log()) |> 
+           multiply_by(100)) |> 
+  ggplot() +
+  aes(x = year,
+      y = flow_diff) +
+  geom_line(colour = "blue") +
+  labs(y = "Annual Flow", 
+       x = "Year")
+```
+
+### 前年の流量との散布図
+
+- 前年のナイル川の流量と比較するために散布図を描く
+
+```{r}
+Nile_df |> 
+  ggplot() +
+  aes(x = flow,
+      y = lag(flow)) +
+  geom_point()
+```
+
+# 時系列モデルの推定
+
+### 単位根の有無の検定
+
+- 単位根の有無を検定するには`tseries::adf.test()`関数を利用する
+    - 帰無仮説は単位根を持つ($\phi = 1$)
+    - p値が大きいときの解釈は単位根を持つことを否定できない
+
+```{r}
+p_load(tseries)
+adf.test(Nile_df$flow)
+```
+
+
+### 自己相関係数の算出
+
+- 過去の自身の値との相関(自己相関係数)を計算する
+
+```{r}
+acf(Nile_df$flow, plot = FALSE)
+```
+
+### 偏自己相関係数の算出
+
+- 偏自己相関係数を算出する
+    - ラグ2の場合$t-2$期の値は, $t-1$期も通して$t$期へ影響を与えるため, $t-1$期の影響をコントロールする
+
+```{r}
+acf(Nile_df$flow, plot = FALSE, type = "partial")
+```
+
+### モデル選択
+
+- `forecast::auto.arima()`関数を用いてAICを基準に最適な時系列モデルを選択を行う
+- ARIMA(1,1,1)が選択される
+
+```{r}
+p_load(forecast)
+model_Nile <- auto.arima(
+  Nile_df$flow,
+  ic            = "aic",
+  trace         = T,
+  stepwise      = F,
+  approximation = F
+)
+```
+
+### 結果の確認
+
+- `stargazer`も`jtools`も対応していないため, `summary`で結果を確認する
+
+```{r}
+summary(model_Nile)
+```
+
+### 残差の確認1
+
+- 残差に時系列的な影響が残っていないかをチェックする
+
+```{r}
+auto.arima(
+  model_Nile$residuals,
+  ic            = "aic",
+  trace         = F,
+  stepwise      = F,
+  approximation = F
+)
+```
+
+### 残差の確認2
+
+- 残差に時系列的な影響が残っていないかをチェックする
+
+```{r}
+auto.arima(
+  model_Nile$residuals^2,
+  ic            = "aic",
+  trace         = F,
+  stepwise      = F,
+  approximation = F
+)
+```
+
+### ARIMAモデルによる予測の図示
+
+- `forecast()`関数を利用して予測を行う
+    - 基本的に先のことはあまりわからない
+
+```{r}
+forecast(model_Nile, 
+         level = c(95),
+         h     = 10) |> 
+  plot()
+```
+
+# State Space Model
+
+### モデルの型の指定
+
+- まずは, ローカルレベルモデル(ランダムウォーク+ノイズモデル)を推定する
+- はじめに, 状態空間モデルの型を指定する
+    - `order`はでローカルレベルモデル(1)か, ローカルトレンドモデル(2)かを指定する
+    - `dv`で観測方程式のモデルを指定し, `dW`で状態の分散行列の対角成分を指定, `m0`で初期値を指定する
+    - 指数変換するとパラメーターは非負になる
+
+```{r}
+p_load(dlm)
+buildModPoly1 <- function(theta){
+  dlmModPoly(order = 1,
+             dV    = exp(theta[1]),
+             dW    = exp(theta[2]),
+             m0    = theta[3])     
+}
+```
+
+### モデルの推定
+
+- `dlm::dlmMLE()`関数を利用して型に入れるパラメーターを推定する
+
+```{r}
+p_load(magrittr)
+Nile_local <- Nile_df %$% 
+  dlmMLE(flow, 
+         parm = c(0, 0, flow[1]), 
+         buildModPoly1)
+Nile_local
+```
+
+
+### モデルの再編
+
+- 推定したパラメータを使ってモデルを組み直す
+- Vは観測誤差の大きさ(分散)を, Wは状態の変動の大きさ(プロセスエラーの分散)を表す
+
+```{r}
+mod_Nile <- buildModPoly1(Nile_local$par)
+mod_Nile
+```
+
+### フィルタリング
+
+- 次に, パラメーターを型に入れてカルマンフィルターによるフィルタリングを行う
+
+```{r}
+Nile_filt <- dlmFilter(Nile_df$flow, mod_Nile)
+Nile_filt$m
+```
+
+### フィルタリング結果の図示
+
+フィルタリングの結果を可視化します(オレンジ色)
+
+```{r}
+ggplot(Nile_df) +
+  aes(x = year,
+      y = flow) +
+  geom_line(colour = "blue") +
+  geom_line(aes(y = Nile_filt$m[2:101]), 
+            colour = "orange") +
+  labs(y = "Annual Flow",
+       x = "Year") 
+```
+
+### スムージング
+
+- 最後にカルマンフィルターの結果を使ってスムージングを適用する
+
+```{r}
+Nile_smooth <- dlmSmooth(Nile_filt)
+Nile_smooth$s
+```
+
+### スムージング結果の図示
+
+スムージングの結果を可視化します(赤色)
+
+```{r}
+ggplot(Nile_df) +
+  aes(x = year,
+      y = flow) +
+  geom_line(colour = "blue") +
+  geom_line(aes(y = Nile_filt$m[1:100]),
+            colour = "orange") +
+  geom_line(aes(y = Nile_smooth$s[1:100]),
+            colour = "red") +
+  labs(y = "Annual Flow",
+       x = "Year") 
+```
