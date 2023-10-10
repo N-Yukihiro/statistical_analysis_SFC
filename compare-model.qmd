@@ -3,8 +3,6 @@ title: "モデルの比較, 選択"
 format: html
 ---
 
-# Today's dataset
-
 ### 今日使うデータ
 
 Stata pressで公開されているデータを用いる.
@@ -286,22 +284,24 @@ stargazer::stargazer(npub_nb1,
                      align             = TRUE)
 ```
 
-### LOOCV
+### Bootstrap
 
-LOOCVによってモデルを評価する.
+Bootstrapによってモデルを評価する.
 
 ```{r}
 train(art ~ .,
-      data = npub,
-      method = "glm.nb",
-      trControl = trainControl("LOOCV"))
+      data      = npub,
+      method    = "glm.nb",
+      trControl = trainControl(method = "cv",
+                               number = 100))
 ```
 
 ```{r}
-train(art ~ art ~ fem + mar + kid5 + ment,
-      data = npub,
-      method = "glm.nb",
-      trControl = trainControl("LOOCV"))
+train(art ~ fem + mar + kid5 + ment,
+      data      = npub,
+      method    = "glm.nb",
+      trControl = trainControl(method = "cv",
+                               number = 100))
 ```
 
 ### 全ての結果を比較
