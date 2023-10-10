@@ -10,3 +10,5 @@ url <- "https://github.com/N-Yukihiro/statistical_analysis_SFC.git"
 git2r::clone(url = url,
              local_path = "exercise")
 ```
+
+ipynbファイルも提供していますが動作の確認はしていません。
