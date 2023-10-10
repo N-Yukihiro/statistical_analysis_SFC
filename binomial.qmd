@@ -1,14 +1,14 @@
 ---
 title: "ロジスティック回帰他"
-output: html_notebook
+format: html
 ---
 
 ### 今回利用するデータ
 
-- 今回の演習では、Titanicの生存者情報データを用いる
-    - データは`titanic`パッケージに入っている`titanic_train`
+今回の演習では、Titanicの生存者情報データを用いる.
+データは`titanic`パッケージに入っている`titanic_train`を用いる.
 
-- まずは, 変数を確認
+まずは, 変数を確認する
 
 ```{r}
 library(pacman)
@@ -22,10 +22,8 @@ names(titanic_train)
 
 ### 欠測値の定義
 
-- 今回使うデータは空欄と`NA`が混在しているため, NAに統一
-- 利用するのは`naniar::replace_with_na_all`
-
-\small
+今回使うデータは空欄と`NA`が混在しているため, NAに統一する.
+利用するのは`naniar::replace_with_na_all()`関数.
 
 ```{r}
 p_load(naniar)
@@ -34,7 +32,7 @@ train <- replace_with_na_all(titanic_train,
 ```
 
 ### データ構造の確認
-- データ構造を確認するため, `dplyr::glimpse`を利用する
+データ構造を確認するため, `dplyr::glimpse()`関数を利用する.
 
 ```{r}
 p_load(dplyr)
@@ -43,8 +41,8 @@ glimpse(train)
 
 ## 先頭から数行を確認
 
-- 先頭から数行を確認するために`head`を利用する
-- Cabinの1行目と3行目は欠測値になっていることがわかる
+先頭から数行を確認するために`head()`関数を利用する.
+`Cabin`の1行目と3行目は欠測値になっていることがわかる.
 
 ```{r}
 head(train)
@@ -52,28 +50,28 @@ head(train)
 
 ### データの概要を確認
 
-- データの記述統計を確認するために`summary`を利用する
-- 文字列の欠測値は表示されない
+データの記述統計を確認するために`summary()`関数を利用する.
+文字列の欠測値は表示されない.
 
 ```{r}
 summary(train)
 ```
 
 ### 欠測値を確認
-- このデータはいくつかの欠測値を含んでいるため, 欠測値がどの変数にいくつ含まれているのか確認する
-- `dplyr::summarise`を利用し, `is.na`でNAに該当するセルがいくつあるのかを数え上げる
+このデータはいくつかの欠測値を含んでいるため, 欠測値がどの変数にいくつ含まれているのか確認する.
+`dplyr::summarise()`関数を利用し, `is.na`でNAに該当するセルがいくつあるのかを数え上げる.
 
 ```{r}
 summarise(train,
           across(everything(),
-                 ~ sum(is.na(.))))
+                 \(x) sum(is.na(x))))
 ```
 
 ### 欠測値の除去
 
-- 欠測値を含む行を削除する
-    - これをリストワイズ除去という
-- ここでは, `na.omit`と`tidyr::drop_na`の2種類を紹介する
+欠測値を含む行を削除する.
+これをリストワイズ除去という.
+ここでは, `na.omit()`関数と`tidyr::drop_na()`関数の2種類を紹介する.
 
 ```{r}
 train2 <- na.omit(train)
@@ -88,8 +86,6 @@ train2 <- tidyr::drop_na(train)
 head(train2)
 ```
 
-###
-
 ```{r}
 summary(train2)
 ```
@@ -98,11 +94,11 @@ summary(train2)
 
 ### コードを書いていて困ること1
 
-- `()`がいくつも重なるととてもコードが読みにくい
-    - `()`の一番内側から処理を実行し, コードの先頭にある関数は一番最後に実行する関数
-    - 例えば, 下の例にあるコードを実行する場合, `fun3(x)`を最初に実行し, その結果に対して`fun2()`を実行し, さらにその結果を`fun1()`が受け取って実行する
-    - 人間の思考と逆
-    
+`()`がいくつも重なるととてもコードが読みにくい.
+`()`の一番内側から処理を実行し, コードの先頭にある関数は一番最後に実行する関数となる.
+例えば, 下の例にあるコードを実行する場合, `fun3(x)`を最初に実行し, その結果に対して`fun2()`を実行し, さらにその結果を`fun1()`が受け取って実行する.
+これは人間の思考と逆である.
+
 ```{r}
 fun1(fun2(fun3(x)))
 ```
@@ -110,8 +106,8 @@ fun1(fun2(fun3(x)))
 
 ### コードを書いていて困ること2
 
-- 関数などをネストして書くことを避けると一時的に作成した中間的なオブジェクトが多くなる
-    - 全くだめなわけではないが, 多すぎると見通しが悪い
+関数などをネストして書くことを避けると一時的に作成した中間的なオブジェクトが多くなる.
+全くだめなわけではないが, 多すぎると見通しが悪い.
 
 ```{r}
 x1 <- fun3(x)
@@ -119,17 +115,18 @@ x2 <- fun2(x1)
 fun1(x2)
 ```
 
-$\rightarrow$ これらの解決する手段として%>%(パイプ)演算子がある
+$\rightarrow$ これらの解決する手段として`|>`(パイプ)演算子がある
 
 ### `|>`(パイプ)とは
 
-- `|>`(パイプ)演算子を使うことで、パイプ演算子の前の結果をパイプ演算子の後の関数の第一引数に入れることができる
-    - パイプ演算子はR4.1.0から素のRに導入された
-    - 以前のパイプ演算子`%>%`は`magrittr`パッケージの中の関数の1つ
-    - `dplyr`パッケージを読み込むと一緒に読み込んでくれる
-    - ctrl(cmd) + Shift(opt) + Mで書くことができる
-    - 特に`dplyr`パッケージ等を用いたデータの前処理で大活躍
-- 詳しくは[magrittrのvignettes](https://cran.r-project.org/web/packages/magrittr/vignettes/magrittr.html)などを参照
+`|>`(パイプ)演算子を使うことで、パイプ演算子の前の結果をパイプ演算子の後の関数の第一引数に入れることができる.
+パイプ演算子はR4.1.0から素のRに導入された.
+
+以前のパイプ演算子`%>%`は`magrittr`パッケージの中の関数の1つ.
+`dplyr`パッケージを読み込むと一緒に読み込んでくれる.
+
+`|>`はctrl(cmd) + Shift(opt) + Mで書くことができる.
+特に`dplyr`パッケージ等を用いたデータの前処理で大活躍する.
 
 ```{r}
 fun3(x) |> 
@@ -141,8 +138,8 @@ fun3(x) |>
 
 ### 変数の変換
 
-- いくつかの変数のデータ型を`Integer`や`Character`から`factor`に, `Character`から文字の抜き出しなどを行う
-- 列の変換には`dplyr::mutate`を利用する
+いくつかの変数のデータ型を`Integer`や`Character`から`factor`に, `Character`から文字の抜き出しなどを行う.
+列の変換には`dplyr::mutate()`関数を利用する
 
 ```{r}
 p_load(stringr)
@@ -163,8 +160,8 @@ train3 <- train2 |>
 
 ### ロジスティック回帰モデル
 
-- ロジスティック回帰モデルを推定するために`glm(family = binomial(link="logit"))`を利用
-- モデルを2つ作成し, 推定を行う
+ロジスティック回帰モデルを推定するために`glm(family = binomial(link="logit"))`を利用する.
+モデルを2つ作成し, 推定を行う.
 
 ```{r}
 model1 <- Survived ~ Pclass + Sex + Age + 
@@ -175,8 +172,7 @@ model2 <- Survived ~ Pclass + Sex + Age
 
 ### モデル1の結果
 
-- `jtools::summ()`関数を利用して結果の確認を行う
-- モデル1は結果の表が長いため, 各自のPCで結果を確認すること
+`jtools::summ()`関数を利用して結果の確認を行う.
 
 ```{r}
 glm_logit1 <- glm(model1, 
@@ -188,21 +184,21 @@ summ(glm_logit1)
 
 ### 多重共線性のチェック
 
-- `car::vif`を利用してモデル1の多重共線性をチェックする
-- `Sex`と`Title`の値が大きく, 推定に問題があることが示唆される
-    - `Sex`とMr, Mrsなどを含む`Title`が相関するのは当然
+`summ()`関数の引数`vifs`を利用してモデル1の多重共線性をチェックする.
+`Sex`と`Title`の値が大きく, 推定に問題があることが示唆される.
+`Sex`とMr, Mrsなどを含む`Title`が相関するのは当然.
 
 ```{r}
-p_load(car)
-car::vif(glm_logit1)
+summ(glm_logit1, vifs = TRUE)
 ```
 
 ### モデル2の結果
 
-- モデルを変えて(`CabinLetter`と`Title`を除いて)分析を行う
+モデルを変えて(`CabinLetter`と`Title`を除いて)分析を行う.
 
 ```{r}
-glm_logit2 <- glm(model2, data = train3, 
+glm_logit2 <- glm(model2,
+                  data   = train3, 
                   family = binomial(link = 'logit'))
 summ(glm_logit2,
      vifs = TRUE)
@@ -210,7 +206,7 @@ summ(glm_logit2,
 
 ### 推定された係数の図示
 
-- 推定された係数を図で確認するために, `coefplot::coefplot()`関数を利用する
+推定された係数を図で確認するために, `coefplot::coefplot()`関数を利用する.
 
 ```{r}
 p_load(coefplot)
@@ -220,8 +216,7 @@ coefplot(glm_logit2,
 
 ### オッズ比の算出
 
-- ロジスティック回帰モデルにより算出された回帰係数はそのままでは解釈できない
-    - オッズ比を計算する
+ロジスティック回帰モデルにより算出された回帰係数はそのままでは解釈できないため, 指数変換しオッズ比を計算する.
 
 ```{r}
 summ(glm_logit2, exp = TRUE)
@@ -229,11 +224,9 @@ summ(glm_logit2, exp = TRUE)
 
 # オッズ比の理解
 
-- 指数変換して計算したオッズ比がどのようなものかを理解する
+指数変換して計算したオッズ比がどのようなものかを理解する.
 
 ```{r}
-#| echo: false
-
 p <- predict(glm_logit2,
         newdata = tibble(Pclass = factor(1),
                          Sex    = "male",
@@ -249,7 +242,7 @@ q <- predict(glm_logit2,
 
 ### オッズ比の図示
 
-- `ggplot2`を使ってオッズ比の信頼区間を図示する
+`ggplot2`を使ってオッズ比の信頼区間を図示する.
 
 ```{r}
 p_load(broom)
@@ -275,7 +268,7 @@ broom::tidy(glm_logit2,
 
 ### ロジスティック回帰モデルの残差チェック
 
-- 残差をチェックするために`autoplot`を行う
+残差をチェックするために`autoplot`を行う.
 
 ```{r}
 p_load(ggfortify)
@@ -290,7 +283,8 @@ perform <- function(data, observed, predict){
   obs  <- enquo(observed)
   pred <- enquo(predict)
   result <- data |> 
-    select(obs := !!obs, pred := !!pred) |> 
+    select(obs  := !!obs, 
+           pred := !!pred) |> 
     mutate(TP = if_else(obs == 1 & pred == 1,
                         1, 0),
            FP = if_else(obs == 0 & pred == 1,
@@ -302,20 +296,20 @@ perform <- function(data, observed, predict){
     summarise(across(c(TP, FP, TN, FN), sum)) |> 
     mutate(Pe = ((TP + FN) * (TP + FP) + (TN + FN) * (TN + FP)) /
              sum(TP, FP, TN, FN)^2) |> 
-    transmute(Accuracy = (TP + TN) / (TP + TN + FP + FN),
-           Precision = TP / (TP + FP),
-           Recall = TP / (TP + FN),
-           F1 = 2 * Precision * Recall / (Precision + Recall),
-           kappa = (Accuracy - Pe) / (1 - Pe))
+    transmute(Accuracy  = (TP + TN) / (TP + TN + FP + FN),
+              Precision = TP / (TP + FP),
+              Recall    = TP / (TP + FN),
+              F1        = 2 * Precision * Recall / (Precision + Recall),
+              kappa     = (Accuracy - Pe) / (1 - Pe))
   return(result)
 }
 ```
 
 ### ロジスティックモデルを用いた予測と的中率
 
-- `predict`を用いてモデル上の(理論的な)生存確率を予測する
-- 予測された結果が0.5より大きい場合は生存, 0.5以下であれば死亡とする
-    - 利用したデータを用いた予測の結果, 77.596%が的中した
+`predict`を用いてモデル上の(理論的な)生存確率を予測する.
+予測された結果が0.5より大きい場合は生存, 0.5以下であれば死亡とする.
+利用したデータを用いた予測の結果, 76.5%が的中した.
 
 ```{r}
 train3 |>
@@ -327,8 +321,8 @@ train3 |>
 
 ### LOOCVによる評価
 
-- `caret`パッケージを利用してLOOCVによるモデルの評価を行う
-    - 正解率は75.4%
+`caret`パッケージを利用してLOOCVによるモデルの評価を行う.
+正解率は75.4%.
 
 ```{r}
 p_load(caret)
@@ -344,7 +338,7 @@ train(data      = train3,
 
 ### プロビット回帰モデル
 
-- プロビット回帰モデルを推定するためには, `glm(family=binomial(link='probit'))`を指定する
+プロビット回帰モデルを推定するためには, `glm(family=binomial(link='probit'))`を指定する.
 
 ```{r}
 glm_probit <- glm(model2, 
@@ -355,7 +349,7 @@ summ(glm_probit)
 
 ### プロビットモデルで推定された係数の図示
 
-- 推定された係数を図で確認するために, `coefplot::coefplot`を利用する
+推定された係数を図で確認するために, `coefplot::coefplot`を利用する.
 
 ```{r}
 coefplot(glm_probit, intercept = FALSE)
@@ -363,7 +357,7 @@ coefplot(glm_probit, intercept = FALSE)
 
 ### プロビットモデルの残差チェック
 
-- 残差をチェックするために`autoplot`を行う
+残差をチェックするために`autoplot`を行う.
 
 ```{r}
 autoplot(glm_probit)
@@ -371,9 +365,9 @@ autoplot(glm_probit)
 
 ### プロビットモデルを用いた予測と的中率
 
-- `predict`を用いてモデル上の(理論的な)生存確率を予測する
-- 予測された結果が0.5より大きい場合は生存, 0.5以下であれば死亡とする
-    - 利用したデータを用いた予測の結果, 78.689%が的中した
+`predict`を用いてモデル上の(理論的な)生存確率を予測する.
+予測された結果が0.5より大きい場合は生存, 0.5以下であれば死亡とする.
+利用したデータを用いた予測の結果, 77.0%が的中した.
 
 ```{r}
 train3 |>
@@ -385,8 +379,8 @@ train3 |>
 
 ### LOOCVによる評価
 
-- `caret`パッケージを利用してLOOCVによるモデルの評価を行う
-    - 正解率は75.4%
+`caret`パッケージを利用してLOOCVによるモデルの評価を行う.
+正解率は75.4%.
 
 ```{r}
 train(data      = train3,
@@ -401,7 +395,7 @@ train(data      = train3,
 
 ### 補対数対数回帰モデル
 
-- 補対数対数回帰モデルを推定するためには, `glm(family=binomial(link='cloglog'))`を指定する
+補対数対数回帰モデルを推定するためには, `glm(family=binomial(link='cloglog'))`を指定する.
 
 ```{r}
 glm_cloglog <- glm(model2, 
@@ -412,7 +406,7 @@ summ(glm_cloglog)
 
 ### 補対数対数モデルで推定された係数の図示
 
-- 推定された係数を図で確認するために, `coefplot::coefplot`を利用する
+推定された係数を図で確認するために, `coefplot::coefplot`を利用する.
 
 ```{r}
 coefplot(glm_cloglog, intercept = FALSE)
@@ -420,7 +414,7 @@ coefplot(glm_cloglog, intercept = FALSE)
 
 ### 補対数対数モデルの残差チェック
 
-- 残差をチェックするために`autoplot`を行う
+残差をチェックするために`autoplot`を行う.
 
 ```{r}
 autoplot(glm_cloglog)
@@ -428,9 +422,9 @@ autoplot(glm_cloglog)
 
 ### 補対数対数モデルを用いた予測と的中率
 
-- `predict`を用いてモデル上の(理論的な)生存確率を予測する
-- 予測された結果が0.5より大きい場合は生存, 0.5以下であれば死亡とする
-    - 利用したデータを用いた予測の結果, 76.503%が的中した
+`predict`を用いてモデル上の(理論的な)生存確率を予測する.
+予測された結果が0.5より大きい場合は生存, 0.5以下であれば死亡とする.
+利用したデータを用いた予測の結果, 77.6%が的中した.
 
 ```{r}
 train3 |>
@@ -442,8 +436,8 @@ train3 |>
 
 ### LOOCVによる評価
 
-- `caret`パッケージを利用してLOOCVによるモデルの評価を行う
-    - 正解率は74.3%
+`caret`パッケージを利用してLOOCVによるモデルの評価を行う.
+正解率は74.3%.
 
 ```{r}
 train(data      = train3,
@@ -458,14 +452,15 @@ train(data      = train3,
 
 ### テストデータによる予測
 
-- トレーニングデータで作成したモデルから, テストデータで予測する
+トレーニングデータで作成したモデルから, テストデータで予測する.
 
 ```{r}
 test <- titanic_test |> 
   replace_with_na_all(condition = ~.x %in% c("NA", "")) |> 
   tidyr::drop_na() |> 
   mutate_at(vars(Pclass, Sex, Embarked), as.factor) |> 
-  broom::augment(x = glm_logit2, newdata = _,
+  broom::augment(x            = glm_logit2,
+                 newdata      = _,
                  type.predict = "response") |> 
   mutate(survive = if_else(.fitted > 0.5, 1, 0))
 ```
@@ -473,23 +468,27 @@ test <- titanic_test |>
 
 ### 多重代入法による欠測値の処理
 
-- 欠測値をバイアスをより少なく扱うためには, 多重代入法などを利用する
-- `mice`, `norm2`, `miceadds`パッケージを利用する
+欠測値をバイアスをより少なく扱うためには, 多重代入法などを利用する.
+`mice`, `norm2`, `miceadds`パッケージを利用する.
 
 ```{r}
 p_load(mice, norm2, miceadds)
 glm_logit_imp <- train |> 
   replace_with_na_all(condition = ~.x %in% c("NA", "")) |> 
-  mutate(across(c(Pclass, Sex, Embarked), as.factor)) |> 
+  mutate(across(c(Pclass, Sex, Embarked), 
+                as.factor)) |> 
   select(Survived, Pclass, Sex, Age, SibSp, Parch, Fare, Embarked) |> 
-  mice(m = 100, seed = 20191015,
+  mice(m    = 100,
+       seed = 20191015,
        meth = c("", "", "", "norm", "", "", "norm", "polyreg")) |> 
-  glm.mids(model2, data = _, family = binomial(link = 'logit'))
+  glm.mids(model2, 
+           data   = _, 
+           family = binomial(link = 'logit'))
 ```
 
 ### 多重代入法による結果の確認
 
-- 多重代入法の結果をpoolした上で確認する
+多重代入法の結果をpoolした上で確認する.
 
 ```{r}
 glm_logit_imp |> 
@@ -499,7 +498,7 @@ glm_logit_imp |>
 
 ### 多重代入法(ロジスティック回帰モデル)を用いた予測と的中率
 
-- 利用したデータを用いた予測の結果, 80.696%が的中した
+利用したデータを用いた予測の結果, 79.3%が的中した.
 
 ```{r}
 pooled_lm <-  glm_logit_imp$analyses[[1]]
@@ -512,14 +511,16 @@ train |>
 
 ### テストデータを用いた多重代入法による予測
 
-- 正答率はkaggleにsubimitして確かめて見てください
+正答率はkaggleにsubimitして確かめて見てください.
 
 ```{r}
 test2 <- titanic_test |> 
   replace_with_na_all(condition = ~.x %in% c("NA", "")) |> 
-  mutate(across(c(Pclass, Sex, Embarked), as.factor)) |> 
+  mutate(across(c(Pclass, Sex, Embarked),
+                as.factor)) |> 
   select(Pclass, Sex, Age, SibSp, Parch, Fare, Embarked) |> 
-  mice(m = 100, seed = 31415926,
+  mice(m    = 100,
+       seed = 31415926,
        meth = c("", "", "norm", "", "", "norm", "")) |> 
   complete() %>%
   mutate(predict = predict(pooled_lm,

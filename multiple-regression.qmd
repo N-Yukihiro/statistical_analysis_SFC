@@ -7,7 +7,7 @@ format: html
 
 『家計調査』2017年11月、第2−6表「年間収入階級別1世帯当たり1か月間の収入と支出」から作成した所得階級と支出のデータ`kakei201709_l18.csv`を用いる.
 
-月間消費支出(円)(`CONS`), 月間消費支出(1万円)(`CONS1`), 年間収入(1万円)(INC), 有業人員(人)(`WORK`)
+月間消費支出(円)(`CONS`), 月間消費支出(1万円)(`CONS1`), 年間収入(1万円)(INC), 有業人員(人)(`WORK`).
 いずれも調査世帯の平均値
 
 ```{r}
@@ -42,8 +42,6 @@ model3 <- glm(CONS1 ~ WORK,
               family = "gaussian", data = kakei)
 ```
 
-## 結果の表示
-
 ### 結果の表示
 
 `jtools`パッケージの`summ()`関数を利用して結果を確認する.
@@ -57,11 +55,12 @@ summ(model2)
 
 ### 標準回帰係数の算出
 
-標準回帰係数を算出するには, `scale_mod(scale.response = TRUE)`を利用する.
+標準回帰係数を算出するには, `scale = TRUE, transform.response = TRUE`を利用する.
 
 ```{r}
-summ(scale_mod(model2,
-               scale.response = TRUE))
+summ(model2, 
+     scale              = TRUE, 
+     transform.response = TRUE)
 ```
 
 ### 複数の分析結果を並べる
@@ -132,7 +131,8 @@ multiplot(model1,
 標準回帰係数へは`arm`パッケージの`standardize(standardize.y = TRUE)`で変換できる.
 
 ```{r}
-coefplot(
+p_load(arm)
+coefplot::coefplot(
   arm::standardize(model2,
                    standardize.y = TRUE))
 ```
@@ -181,6 +181,24 @@ ggplot() +
               intercept = 0)
 ```
 
+### 分散不均一の考慮
+
+Welchのt検定のように分散不均一を考慮する際には`estimatr`パッケージの`lm_robust()`関数を利用すると分散不均一を補正した標準誤差を計算できる.
+
+```{r}
+p_load(estimatr)
+lm_robust(CONS1 ~ INC + WORK, 
+          data    = kakei,
+          se_type = "HC3") |> 
+  summary()
+```
+
+分散不均一を補正した結果は`summ()`関数の中で`robust`の引数を指定することでも表示できる.
+
+```{r}
+summ(model2, robust = "HC3")
+```
+
 ### LOOCVの計算
 
 `caret`パッケージを利用してLOOCVを求める.
@@ -209,8 +227,6 @@ LOOCV3 <- train(CONS1 ~ WORK,
                 trControl = trainControl(method = "LOOCV"))
 LOOCV3
 ```
-
-## 分析結果のチェック
 
 ### 残差と予測値のプロット
 
@@ -267,11 +283,10 @@ autoplot(model2,
 ### 多重共線性のチェック
 
 多重共線性のチェックのため, VIFを計算する.
-VIFの計算には, `car`パッケージの`vif()`関数を利用する.
+VIFの計算には, `summ()`関数の引数で`vifs = TRUE`を追加する.
 VIFが10以下であれば問題ない.
 2以下が理想だとする意見もある.
 
 ```{r}
-p_load(car)
-car::vif(model2)
+summ(model2, vifs = TRUE)
 ```

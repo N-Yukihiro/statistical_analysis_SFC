@@ -1,14 +1,14 @@
 ---
 title: "ベータ回帰, ガンマ回帰, 指数-ガウス回帰"
-output: html_notebook
+format: html
 ---
 
 # Beta Regression
 
 ### ベータ回帰モデルで利用するデータ
 
-- `betareg`パッケージの`GasolineYield`データを用いる
-    - 原油からガソリンが得られる割合(`yield`), 原油が全て気化した温度(華氏, `temp`), 重力や圧力, 原油の10%が気化した温度から因子(`batch`)などが含まれる
+`betareg`パッケージの`GasolineYield`データを用いる.
+原油からガソリンが得られる割合(`yield`), 原油が全て気化した温度(華氏, `temp`), 重力や圧力, 原油の10%が気化した温度から因子(`batch`)などが含まれる.
 
 ```{r}
 library(pacman)
@@ -19,7 +19,7 @@ names(GasolineYield)
 
 ### ベータ回帰モデルで利用するデータの要約統計量
 
-- データの要約統計量を確認する
+データの要約統計量を確認する.
 
 ```{r}
 summary(GasolineYield)
@@ -27,7 +27,7 @@ summary(GasolineYield)
 
 ### ベータ回帰モデルで利用するデータのヒストグラム
 
-- `yield`の概要をヒストグラムを描画して確認する
+`yield`の概要をヒストグラムを描画して確認する.
 
 ```{r}
 p_load(ggplot2)
@@ -36,9 +36,7 @@ ggplot(GasolineYield) +
   geom_histogram()
 ```
 
-###
-
-- `temp`の概要をヒストグラムを描画して確認する
+`temp`の概要をヒストグラムを描画して確認する.
 
 ```{r}
 ggplot(GasolineYield) +
@@ -48,7 +46,7 @@ ggplot(GasolineYield) +
 
 ### ベータ回帰モデルで利用するデータの散布図
 
-- 変数間の関係をペアプロットで確認する
+変数間の関係をペアプロットで確認する.
 
 ```{r}
 p_load(GGally, dplyr)
@@ -61,8 +59,8 @@ GasolineYield |>
 
 ### ベータ回帰モデルの推定
 
-- ベータ回帰モデルを推定する
-    - `betareg`パッケージの`betareg()`関数を用いる
+ベータ回帰モデルを推定する.
+`betareg`パッケージの`betareg()`関数を用いる.
 
 ```{r}
 gs_beta <- betareg(yield ~ batch + temp,
@@ -78,7 +76,7 @@ summary(gs_beta)
 
 ### 推定結果の確認
 
-- 推定された結果を散布図上に表示して確認する
+推定された結果を散布図上に表示して確認する.
 
 ```{r}
 GasolineYield |> 
@@ -96,7 +94,7 @@ GasolineYield |>
 
 ### LOOCV
 
-- ベータ回帰のLOOCVが`caret`パッケージに実装されていないので、自分で計算する
+ベータ回帰のLOOCVが`caret`パッケージに実装されていないので、自分で計算する.
 
 ```{r}
 p_load(tibble, dplyr)
@@ -120,9 +118,9 @@ result |>
 
 ### ガンマ回帰モデルで利用するデータ
 
-- `Zelig`パッケージの`coalition`データを利用する
-    - ヨーロッパ(+カナダ)15カ国における連立政権の生存期間(`duration`)に関するデータ
-    - 議会における政党数の指標(`fract`)や内閣が議会で多数派を占めるのかを示すダミー変数(`numst2`)などが含まれる
+`Zelig`パッケージの`coalition`データを利用する.
+ヨーロッパ(+カナダ)15カ国における連立政権の生存期間(`duration`)に関するデータ.
+議会における政党数の指標(`fract`)や内閣が議会で多数派を占めるのかを示すダミー変数(`numst2`)などが含まれる.
 
 ```{r}
 p_load_gh("IQSS/Zelig")
@@ -132,7 +130,7 @@ names(coalition)
 
 ### ガンマ回帰モデルで利用するデータの要約統計量
 
-- データの要約統計量を確認する
+データの要約統計量を確認する.
 
 ```{r}
 summary(coalition)
@@ -140,25 +138,23 @@ summary(coalition)
 
 ### ガンマ回帰モデルで利用するデータのヒストグラム
 
-- `duration`の概要をヒストグラムを描画して確認する
+`duration`の概要をヒストグラムを描画して確認する.
 
 ```{r}
 ggplot(coalition) +
   aes(x = duration,
-      y = ..density..) +
+      y = after_stat(density)) +
   geom_histogram() +
   geom_density(fill  = "lightblue", 
                alpha = 0.5)
 ```
 
-###
-
-- `fract`の概要をヒストグラムを描画して確認する
+`fract`の概要をヒストグラムを描画して確認する.
 
 ```{r}
 ggplot(coalition) +
   aes(x = fract,
-      y = ..density..) +
+      y = after_stat(density)) +
   geom_histogram() +
   geom_density(fill  = "lightblue", 
                alpha = 0.5)
@@ -166,7 +162,7 @@ ggplot(coalition) +
 
 ### ガンマ回帰モデルで利用するデータの散布図
 
-- 変数間の関係をペアプロットで確認する
+変数間の関係をペアプロットで確認する.
 
 ```{r}
 coalition |> 
@@ -180,7 +176,7 @@ coalition |>
 
 ### ガンマ回帰モデルの推定
 
-- ガンマ回帰モデルを推定する
+ガンマ回帰モデルを推定する.
 
 ```{r}
 coa_gam <- glm(duration ~ fract + numst2,
@@ -196,7 +192,7 @@ summary(coa_gam)
 
 ### 推定結果の確認
 
-- 推定された結果を散布図上に表示して確認する
+推定された結果を散布図上に表示して確認する.
 
 ```{r}
 coalition |> 
@@ -213,7 +209,7 @@ coalition |>
 
 ### 予測
 
-- 変数の影響がわかりづらいので予測値を計算する
+変数の影響がわかりづらいので予測値を計算する.
 
 ```{r}
 p_load(tidyr)
@@ -221,7 +217,8 @@ new_data <- expand_grid(fract = 350:870,
                         numst2 = 0:1) %>%
   mutate(pred = predict(coa_gam, 
                         newdata = .)) |> 
-  mutate(across(numst2, as.factor)) 
+  mutate(across(numst2,
+                as.factor)) 
 ```
 
 ### 予測値のプロット
@@ -238,8 +235,8 @@ ggplot(data = new_data) +
 
 ### 指数-ガウス分布
 
-- 指数-ガウス分布は指数分布とガウス(正規)分布の重なったような分布
-- シミュレーションデータによって確認する
+指数-ガウス分布は指数分布とガウス(正規)分布の重なったような分布である.
+シミュレーションデータによって確認する.
 
 ```{r}
 p_load(gamlss, tidyr)
@@ -270,8 +267,8 @@ ggplot(df) +
 
 ### 指数-ガウス回帰モデルで利用するデータ
 
-- `lme4`パッケージの`sleepstudy`データを利用する
-    - 睡眠時間を制限された被験者の反応速度(`Reaction`)
+`lme4`パッケージの`sleepstudy`データを利用する.
+睡眠時間を制限された被験者の反応速度(`Reaction`).
 
 ```{r}
 data(sleepstudy, package = "lme4")
@@ -280,7 +277,7 @@ names(sleepstudy)
 
 ### 指数-ガウス回帰モデルで利用するデータの要約統計量
 
-- データの要約統計量を確認する
+データの要約統計量を確認する.
 
 ```{r}
 summary(sleepstudy)
@@ -288,12 +285,12 @@ summary(sleepstudy)
 
 ### 指数-ガウス回帰モデルで利用するデータのヒストグラム
 
-- `Reaction`の概要をヒストグラムを描画して確認する
+`Reaction`の概要をヒストグラムを描画して確認する.
 
 ```{r}
 ggplot(sleepstudy) + 
   aes(x = Reaction,
-      y = ..density..) +
+      y = after_stat(density)) +
   geom_histogram() +
   geom_density(fill  = "lightblue", 
                alpha = 0.5)
@@ -301,7 +298,7 @@ ggplot(sleepstudy) +
 
 ### 指数- ガウス回帰モデルで利用するデータの散布図
 
-- 変数間の関係を散布図で確認する
+変数間の関係を散布図で確認する.
 
 ```{r}
 ggplot(sleepstudy) +
@@ -312,8 +309,8 @@ ggplot(sleepstudy) +
 
 ### 指数-ガウス回帰モデルの推定
 
-- 指数-ガウス回帰モデルを推定する
-    - `gamlss`パッケージの`gamlss()`関数を用いる
+指数-ガウス回帰モデルを推定する.
+`gamlss`パッケージの`gamlss()`関数を用いる.
 
 ```{r}
 sleep_model <- gamlss(Reaction ~ Days,
@@ -333,7 +330,7 @@ summary(sleep_model)
 
 ### 推定結果の確認
 
-- 推定された結果を散布図上に表示して確認する
+推定された結果を散布図上に表示して確認する.
 
 ```{r}
 sleepstudy |> 
