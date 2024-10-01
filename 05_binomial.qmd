@@ -100,7 +100,7 @@ summary(train2)
 これは人間の思考と逆である.
 
 ```{r}
-fun1(fun2(fun3(x)))
+# fun1(fun2(fun3(x)))
 ```
 
 
@@ -110,9 +110,9 @@ fun1(fun2(fun3(x)))
 全くだめなわけではないが, 多すぎると見通しが悪い.
 
 ```{r}
-x1 <- fun3(x)
-x2 <- fun2(x1)
-fun1(x2)
+# x1 <- fun3(x)
+# x2 <- fun2(x1)
+# fun1(x2)
 ```
 
 $\rightarrow$ これらの解決する手段として`|>`(パイプ)演算子がある
@@ -129,9 +129,9 @@ $\rightarrow$ これらの解決する手段として`|>`(パイプ)演算子が
 特に`dplyr`パッケージ等を用いたデータの前処理で大活躍する.
 
 ```{r}
-fun3(x) |> 
-  fun2() |> 
-  fun1()
+# fun3(x) |> 
+#   fun2() |> 
+#   fun1()
 ```
 
 ## データの整形
@@ -283,16 +283,11 @@ perform <- function(data, observed, predict){
   obs  <- enquo(observed)
   pred <- enquo(predict)
   result <- data |> 
-    select(obs  := !!obs, 
-           pred := !!pred) |> 
-    mutate(TP = if_else(obs == 1 & pred == 1,
-                        1, 0),
-           FP = if_else(obs == 0 & pred == 1,
-                        1, 0),
-           TN = if_else(obs == 0 & pred == 0,
-                        1, 0),
-           FN = if_else(obs == 1 & pred == 0,
-                        1, 0)) |> 
+    select(obs := !!obs, pred := !!pred) |> 
+    mutate(TP = obs == 1 & pred == 1,
+           FP = obs == 0 & pred == 1,
+           TN = obs == 0 & pred == 0,
+           FN = obs == 1 & pred == 0) |> 
     summarise(across(c(TP, FP, TN, FN), sum)) |> 
     mutate(Pe = ((TP + FN) * (TP + FP) + (TN + FN) * (TN + FP)) /
              sum(TP, FP, TN, FN)^2) |> 
@@ -315,7 +310,7 @@ perform <- function(data, observed, predict){
 train3 |>
   mutate(predict = predict(glm_logit2, 
                            type = "response")) |> 
-  mutate(survive = if_else(predict > 0.5, 1, 0)) |> 
+  mutate(survive = predict > 0.5) |> 
   perform(Survived, survive)
 ```
 
@@ -373,7 +368,7 @@ autoplot(glm_probit)
 train3 |>
   mutate(predict = predict(glm_probit, 
                            type = "response")) |> 
-  mutate(survive = if_else(predict > 0.5, 1, 0)) |> 
+  mutate(survive = predict > 0.5) |> 
   perform(Survived, survive)
 ```
 
@@ -430,7 +425,7 @@ autoplot(glm_cloglog)
 train3 |>
   mutate(predict = predict(glm_cloglog, 
                            type = "response")) |> 
-  mutate(survive = if_else(predict > 0.5, 1, 0)) |> 
+  mutate(survive = predict > 0.5) |> 
   perform(Survived, survive)
 ```
 
@@ -462,7 +457,7 @@ test <- titanic_test |>
   broom::augment(x            = glm_logit2,
                  newdata      = _,
                  type.predict = "response") |> 
-  mutate(survive = if_else(.fitted > 0.5, 1, 0))
+  mutate(survive = .fitted > 0.5)
 ```
 
 
@@ -505,7 +500,7 @@ pooled_lm <-  glm_logit_imp$analyses[[1]]
 pooled_lm$coefficients <-  summary(pool(glm_logit_imp))$estimate
 train |> 
   mutate(predict = predict(pooled_lm, type = "response")) |> 
-  mutate(survive = if_else(predict > 0.5, 1, 0)) |> 
+  mutate(survive = predict > 0.5) |> 
   perform(Survived, survive)
 ```
 
@@ -526,5 +521,5 @@ test2 <- titanic_test |>
   mutate(predict = predict(pooled_lm,
                            type    = "response", 
                            newdata = .)) |> 
-  mutate(survive = if_else(predict > 0.5, 1, 0))
+  mutate(survive = predict > 0.5)
 ```
