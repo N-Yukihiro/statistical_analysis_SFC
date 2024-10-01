@@ -1,6 +1,6 @@
 ---
 title: "Rの導入と単回帰分析"
-format: html
+format: ipynb
 ---
 
 ### Quarto
@@ -52,8 +52,6 @@ CRANに登録されたパッケージをインストールするには, `install
 
 ```{r}
 install.packages("dplyr")
-install.packages("readr")
-install.packages("ggplot2")
 ```
 
 ### パッケージの利用
@@ -64,8 +62,6 @@ install.packages("ggplot2")
 
 ```{r}
 library(dplyr)
-library(readr)
-library(ggplot2)
 ```
 
 ### `pacman`パッケージ
@@ -80,7 +76,7 @@ github上のパッケージは`p_load_gh()`関数を利用する.
 ```{r}
 install.packages("pacman")
 library(pacman)
-p_load(dplyr, readr, ggplot2)
+p_load(readr, ggplot2)
 ```
 
 ### `here`パッケージ
@@ -92,7 +88,7 @@ p_load(dplyr, readr, ggplot2)
 ```{r}
 p_load(here)
 here()
-#here("フォルダ名", "ファイル名")
+here("フォルダ名", "ファイル名")
 ```
 
 ### HELPの利用
