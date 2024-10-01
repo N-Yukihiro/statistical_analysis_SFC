@@ -35,11 +35,14 @@ ggpairs(kakei)
 
 ```{r}
 model1 <- glm(CONS1 ~ INC, 
-              family = "gaussian", data = kakei)
+              family = "gaussian",
+              data   = kakei)
 model2 <- glm(CONS1 ~ INC + WORK, 
-              family = "gaussian", data = kakei)
+              family = "gaussian",
+              data   = kakei)
 model3 <- glm(CONS1 ~ WORK, 
-              family = "gaussian", data = kakei)
+              family = "gaussian", 
+              data   = kakei)
 ```
 
 ### 結果の表示
@@ -134,7 +137,8 @@ multiplot(model1,
 p_load(arm)
 coefplot::coefplot(
   arm::standardize(model2,
-                   standardize.y = TRUE))
+                   standardize.y = TRUE)
+  )
 ```
 
 ### 標準回帰係数のマルチプロット
@@ -149,7 +153,8 @@ multiplot(
                    standardize.y = TRUE),
   arm::standardize(model3,
                    standardize.y = TRUE),
-  names = c("model1", "model2", "model3"))
+  names = c("model1", "model2", "model3")
+  )
 ```
 
 ### 予測値の算出
