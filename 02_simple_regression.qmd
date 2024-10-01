@@ -1,6 +1,6 @@
 ---
 title: "Rの導入と単回帰分析"
-format: html
+format: ipynb
 ---
 
 ### Quarto
