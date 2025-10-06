@@ -118,13 +118,13 @@ result |>
 
 ### ガンマ回帰モデルで利用するデータ
 
-`Zelig`パッケージの`coalition`データを利用する.
+`brglm2`パッケージの`coalition`データを利用する.
 ヨーロッパ(+カナダ)15カ国における連立政権の生存期間(`duration`)に関するデータ.
 議会における政党数の指標(`fract`)や内閣が議会で多数派を占めるのかを示すダミー変数(`numst2`)などが含まれる.
 
 ```{r}
-p_load_gh("IQSS/Zelig")
-data(coalition, package = "Zelig")
+pacman::p_load("brglm2")
+data(coalition, package = "brglm2")
 names(coalition)
 ```
 

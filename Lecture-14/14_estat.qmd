@@ -3,6 +3,8 @@ title: "e-statを利用した統計分析"
 format: html
 ---
 
+# Today's Practice
+
 ### 今日の演習の目標
 
 e-stat APIを利用できるようになる.
@@ -28,7 +30,7 @@ XML, JSON, CSVなどによってデータが提供される.
 ### estatapi
 
 `estatapi`は, e-Stat APIを利用するためのパッケージ.
-以下の4つの機能をサポートしている.
+以下の4つの機能をサポート.
 - 統計表情報取得: 提供されている統計表を検索
 - メタ情報取得: 統計データのメタ情報を取得
 - 統計データ取得: 統計データを取得
@@ -36,10 +38,13 @@ XML, JSON, CSVなどによってデータが提供される.
 
 ### appIdの利用
 
-まず, e-statで先ほど作成したIDを変数として格納する.
+まず, e-statで先ほど作成したIDを`.env`ファイルに保存し, `dotenv`パッケージを利用して読み込む.
 
 ```{r}
-appId <- "各自のappId"
+library(pacman)
+p_load(dotenv)
+dotenv::load_dot_env()
+appId <- Sys.getenv("appId")
 ```
 
 ### 統計表情報取得(`estat_getStatsList`)
@@ -47,10 +52,9 @@ appId <- "各自のappId"
 どのような統計表が提供されているのか検索するには, `estat_getStatsList`を利用する.
 キーワードを含む統計を検索するには, `searchWord`に指定する.
 特に`STATISTICS_NAME`や`TITLE`に注目し, `@id`が何かを確認する.
-検索する際には, `View()`関数を用いて視覚的に探しても良いし, `dplyr::filter()`関数などを利用しても良い.
+検索する際には, `View`を用いて視覚的に探しても良いし, `dplyr::filter`などを利用しても良い.
 
 ```{r}
-library(pacman)
 p_load(estatapi, dplyr)
 estat_getStatsList(appId      = appId,
                    searchWord = "人口") |> 
@@ -59,9 +63,10 @@ estat_getStatsList(appId      = appId,
 
 ### メタ情報取得(`estat_getMetaInfo`)
 
-統計データのメタ情報取得するには, `estat_getMetaInfo()`関数を利用し, `statsDataId`にIDを指定する.
+統計データのメタ情報取得するには, `estat_getMetaInfo`を利用し, - statsDataIdにIDを指定する.
 ここでは2021年の都道府県別5歳階級別人口推計データ(0003448237)のメタ情報を取得する.
-結果はlist形式で返され, listの各要素がdata frameになっている.
+結果はlist形式で返される.
+listの各要素がdata frameになっている.
 
 ```{r}
 meta_info <- estat_getMetaInfo(appId       = appId, 
@@ -69,7 +74,7 @@ meta_info <- estat_getMetaInfo(appId       = appId,
 meta_info |> names()
 ```
 
-`cat**`に様々な属性情報が含まれている.
+`cat**`に様々な属性情報が含まれている
 
 ```{r}
 meta_info$cat01
@@ -81,9 +86,8 @@ meta_info$time
 
 ### 統計データ取得(`estat_getStatsData`)
 
-統計データ取得には, `estat_getStatsData()`関数を利用する.
+統計データ取得には, `estat_getStatsData`を利用する.
 必ず指定しなければならない引数は, `appId`と`statsDataId`.
-
 しかし, データが大きくなりすぎる場合がある.
 `cdCat**`などを利用して, データを絞ることも必要.
 男女総数かつ総人口, 人口総数もしくは65歳以上の人口に絞って取得する.
@@ -104,27 +108,34 @@ df <- estat_getStatsData(
 
 データの整形には`dplyr`パッケージを利用する.
 必要のない列が多いので, 必要な列のみを選択する.
-列を選択するには, `dplyr::select()`関数を利用する.
+列を選択するには, `dplyr::select`を利用する.
 
 ```{r}
-df <- dplyr::select(df, 5, 6, 9, 10, 11, 14)
+selected_df <- dplyr::select(
+  df,
+  area_code,
+  pref = `全国・都道府県`,
+  time_code,
+  cat02_code, 
+  value
+)
 ```
 
 ### 行の選択
 
 次に, データから全国のデータを取り除く.
-データを取り除くには`dplyr::filter()`関数を利用する.
+データを取り除くには`dplyr::filter`を利用する.
 
 ```{r}
-df <- dplyr::filter(df, area_code != "00000") |> 
-  filter(time_code == "1301")
+filtered_df <- dplyr::filter(selected_df, area_code != "00000") |> 
+  dplyr::filter(time_code == "1301")
 ```
 
 人口総数のデータと5歳階級別65歳以上人口のデータに分ける.
 
 ```{r}
-df_all <- dplyr::filter(df, cat02_code == "01000")
-df_65  <- dplyr::filter(df, cat02_code != "01000")
+df_all <- dplyr::filter(filtered_df, cat02_code == "01000")
+df_65  <- dplyr::filter(filtered_df, cat02_code != "01000")
 ```
 
 ### データの集約
@@ -132,28 +143,28 @@ df_65  <- dplyr::filter(df, cat02_code != "01000")
 5歳階級別65歳以上人口のデータから都道府県別65歳以上人口の合計を求める.
 
 ```{r}
-df_65 <- df_65 |> 
+df_65_aggregated <- df_65 |> 
   dplyr::group_by(area_code) |> 
   dplyr::summarise(pop_65 = sum(value))
 ```
 
 ### データの結合
 
-データフレーム同士を列をキーにして結合するには, `dplyr::left_join()`関数を利用する.
+データフレーム同士を列をキーにして結合するには, `dplyr::left_join`を利用する.
 
 ```{r}
-df2 <- dplyr::left_join(df_all, df_65,
+df2 <- dplyr::left_join(df_all, df_65_aggregated,
                         by = "area_code")
 ```
 
 ### 新しい列の作成
 
-新しい列を作成するには, `dplyr::mutate()`関数を利用する.
+新しい列を作成するには, `dplyr::mutate`を利用する.
 65歳以上人口と総人口から高齢化率を求める.
 
 ```{r}
-df2 <- mutate(df2, 
-              aged_ratio = pop_65 / value)
+df2 <- dplyr::mutate(df2, 
+                     aged_ratio = pop_65 / value)
 ```
 
 # 分析
@@ -178,6 +189,7 @@ ggplot(df2) +
   aes(x = value,
       y = aged_ratio) +
   geom_point()
+  # geom_text(aes(label = pref), size = 3)
 ```
 
 ### 回帰分析
@@ -192,7 +204,7 @@ df_lm <- lm(aged_ratio ~ value,
 
 ### 結果の表示
 
-分析の結果をきれいに表示するには, `stargazer()`関数を利用する.
+分析の結果をきれいに表示するには, `stargazer`を利用する.
 
 ```{r}
 p_load(stargazer)
@@ -242,14 +254,12 @@ df_limit <- estat_getStatsData(
 
 ### ダウンロードしたファイルの読み込み
 
-実はこれでもきれいな形にはなりきっていない.
-非表示の列や行があるため.
+非表示の列や行があるため, 実はこれでもきれいな形にはなりきっていない.
 問題があれば読み込みで対処する.
 
 ```{r}
-p_load(readxl, here)
-df_xl <- readxl::read_excel(here("data",
-                                 "a01000.xls"),
+p_load(readxl)
+df_xl <- readxl::read_excel("../data/a01000.xls",
                             skip = 2) |> 
   dplyr::select(-c(1:6))
 ```

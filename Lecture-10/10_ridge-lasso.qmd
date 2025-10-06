@@ -176,7 +176,7 @@ coef(dia_ridge_cv, s = "lambda.min")
 MSEが最小となるときのMSEの上側1seとなるときの$\lambda$に対応するパラメータ.
 
 ```{r}
-coef(dia_ridge_cv, s　= "lambda.1se")
+coef(dia_ridge_cv, s = "lambda.1se")
 ```
 
 ### 推定結果の確認
